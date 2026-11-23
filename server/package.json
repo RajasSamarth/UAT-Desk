@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "migrate": "node src/migrate.js",
+    "db:check": "node src/db-check.js",
     "seed": "node src/seed.js",
     "seed:demo": "node src/seed.js --demo",
     "user:add": "node src/add-user.js",

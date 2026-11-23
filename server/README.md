@@ -45,6 +45,7 @@ No SMTP by default: OTP codes are logged to console and written to the `dev_outb
 | `npm start` | Run the app (port 3000 by default, or PORT from .env) |
 | `npm run dev` | Run with Node `--watch` for development |
 | `npm run migrate` | Apply `migrations/001_init.sql` |
+| `npm run db:check` | Print connection/server/schema status and flag missing tables |
 | `npm run seed:demo` | Create admin user + two demo client projects with known passwords |
 | `npm run seed -- --reset-admin` | Sync admin user email and password in the DB with `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` |
 | `npm run user:add -- email "Name" "password"` | Add/update a company user (CLI) |
@@ -69,6 +70,36 @@ No SMTP by default: OTP codes are logged to console and written to the `dev_outb
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE` | (none) | S3-compatible settings (MinIO) |
 | `TRUST_PROXY` | `false` | Set `true` behind a reverse proxy so `req.ip` is the client IP |
 | `COOKIE_SECURE` | `true` when `NODE_ENV=production` | Set `false` only for local HTTP production-mode containers |
+
+## Using Supabase
+
+The app works against Supabase's hosted PostgreSQL without code changes: SSL is enabled automatically for `supabase.co` and `pooler.supabase.com` hosts.
+
+1. Create a project at <https://supabase.com> and note the database password.
+2. In **Project Settings → Database → Connection string**, copy the **Session pooler** URI (port `5432`). Do not use the transaction pooler on port `6543` — this app keeps long-lived pooled connections and a PostgreSQL-backed session store.
+3. Put it in `server/.env`, URL-encoding special characters in the password (`@` → `%40`, `#` → `%23`, etc.):
+
+   ```ini
+   DATABASE_URL=postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
+   PG_POOL_MAX=5
+   ```
+
+4. Verify the connection, then create the schema and seed data:
+
+   ```powershell
+   npm run db:check
+   npm run migrate
+   npm run seed:demo
+   npm run seed -- --reset-admin
+   ```
+
+5. Restart the app and confirm data appears in the Supabase **Table Editor**.
+
+Notes:
+
+- Keep `PG_POOL_MAX` low (5–10) on the free tier to avoid connection limits.
+- Screenshots and PDFs are still stored on the app's local disk by default (`STORAGE_DIR`). For an ephemeral host, switch to `STORAGE_DRIVER=s3` or mount persistent storage; Supabase Storage is not wired in.
+- `npm run db:check` reports the target host with the password redacted, so it is safe to paste the output into a bug report.
 
 ## Docker
 
@@ -181,4 +212,4 @@ Before exposing this to real users:
 ## Notes
 
 - The standalone `UAT Desk.html` at the repo root is intentionally left unchanged from the prototype phase.
-- No git repository exists in this workspace; all changes are uncommitted plain files.
+- The repository is `https://github.com/RajasSamarth/UAT-Desk` (branch `main`).

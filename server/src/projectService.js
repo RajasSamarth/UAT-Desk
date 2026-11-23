@@ -21,9 +21,10 @@ function computeStats(bundle) {
   return {
     total: items.length,
     done: items.filter(itemDone).length,
+    na: items.filter(i => i.status === 'na').length,
     fail: items.filter(i => i.status === 'fail').length,
     retest: items.filter(i => i.status === 'retest').length,
-    tested: items.filter(i => i.status).length
+    tested: items.filter(itemTested).length
   };
 }
 
@@ -278,9 +279,10 @@ async function getDashboard() {
        LEFT JOIN LATERAL (
          SELECT count(*)::int AS total,
                 count(*) FILTER (WHERE r.status IN ('pass', 'na'))::int AS done,
+                count(*) FILTER (WHERE r.status = 'na')::int AS na,
                 count(*) FILTER (WHERE r.status = 'fail')::int AS fail,
                 count(*) FILTER (WHERE r.status = 'retest')::int AS retest,
-                count(*) FILTER (WHERE r.status IS NOT NULL)::int AS tested
+                count(*) FILTER (WHERE r.status IN ('pass', 'fail', 'na'))::int AS tested
            FROM checklist_items i
            LEFT JOIN LATERAL (
              SELECT status FROM item_results ir WHERE ir.item_id = i.id ORDER BY ir.created_at DESC, ir.id DESC LIMIT 1
@@ -300,7 +302,7 @@ async function getDashboard() {
                 LEFT JOIN LATERAL (
                   SELECT status FROM item_results ir WHERE ir.item_id = i.id ORDER BY ir.created_at DESC, ir.id DESC LIMIT 1
                 ) r ON true
-               WHERE i.milestone_id = m.id AND (r.status IS NULL OR r.status NOT IN ('pass', 'na'))
+               WHERE i.milestone_id = m.id AND (r.status IS NULL OR r.status NOT IN ('pass', 'fail', 'na'))
             )
           ORDER BY m.position
           LIMIT 1
@@ -313,7 +315,7 @@ async function getDashboard() {
     if (r.verification_id) status = 'signed';
     else if (r.revoked_at) status = 'revoked';
     else if (expired) status = 'expired';
-    else if (r.total > 0 && r.done === r.total) status = 'ready';
+    else if (r.total > 0 && r.tested === r.total) status = 'ready';
     else if (r.tested === 0) status = 'not-started';
     return { ...r, expired, status };
   });

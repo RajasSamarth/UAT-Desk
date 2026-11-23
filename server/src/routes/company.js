@@ -112,6 +112,37 @@ router.get('/projects/new', requireCompany, async (req, res, next) => {
   }
 });
 
+// Validate an uploaded checklist without creating anything. Used by the
+// new-project page to show immediate feedback as soon as a file is chosen.
+router.post('/projects/preview', requireCompany, upload.single('checklist'), requireCsrf, async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.json({ ok: false, errors: ['Choose an .xlsx or .csv checklist first.'] });
+    }
+    const parsed = await parseChecklist(req.file.buffer, req.file.originalname);
+    if (parsed.errors.length) {
+      return res.json({
+        ok: false,
+        fileName: req.file.originalname,
+        errors: parsed.errors
+      });
+    }
+    const milestones = rowsToMilestones(parsed.rows).map(m => ({
+      name: m.name,
+      count: m.items.length,
+      required: m.items.filter(i => i.mandatory).length
+    }));
+    return res.json({
+      ok: true,
+      fileName: req.file.originalname,
+      total: parsed.rows.length,
+      milestones
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/projects', requireCompany, upload.single('checklist'), requireCsrf, async (req, res, next) => {
   try {
     const body = req.body || {};

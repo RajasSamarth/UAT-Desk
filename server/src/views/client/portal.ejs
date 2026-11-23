@@ -2,7 +2,7 @@
 <%
   const token = projectBundle.link.token;
   const pct = bundle.stats.total ? Math.round((bundle.stats.done / bundle.stats.total) * 100) : 0;
-  const milestoneDone = m => m.items.filter(i => i.status === 'pass' || i.status === 'na').length;
+  const milestoneDone = m => m.items.filter(i => i.status === 'pass' || i.status === 'fail' || i.status === 'na').length;
 %>
 <section class="wrap">
   <div class="portal-head">
@@ -23,12 +23,14 @@
       <div class="eyebrow">Milestones</div>
       <% for (let i = 0; i < bundle.milestones.length; i += 1) { const m = bundle.milestones[i]; const st = bundle.states[i]; const done = milestoneDone(m); %>
         <a class="railitem <%= i === index ? 'active' : '' %> <%= st %>"
+           data-rail-milestone="<%= m.id %>"
+           data-rail-href="/p/<%= token %>/portal?ms=<%= m.id %>"
            href="<%= st === 'locked' ? '#' : `/p/${token}/portal?ms=${m.id}` %>"
            <%= st === 'locked' ? 'aria-disabled="true" tabindex="-1"' : '' %>>
-          <span class="railnum"><%= st === 'complete' ? '✓' : i + 1 %></span>
+          <span class="railnum" data-rail-num><%= st === 'complete' ? '✓' : i + 1 %></span>
           <span class="railtext">
             <strong><%= m.name %></strong>
-            <small><%= done %> of <%= m.items.length %> done<%= st === 'locked' ? ' · locked' : '' %></small>
+            <small data-rail-count><%= done %> of <%= m.items.length %> done<%= st === 'locked' ? ' · locked' : '' %></small>
           </span>
         </a>
       <% } %>
@@ -43,9 +45,9 @@
             <div>
               <div class="eyebrow">Milestone <%= index + 1 %> of <%= bundle.milestones.length %></div>
               <h2><%= milestone.name %></h2>
-              <p class="tiny muted"><%= milestoneDone(milestone) %> of <%= milestone.items.length %> items done</p>
+              <p class="tiny muted" data-milestone-done><%= milestoneDone(milestone) %> of <%= milestone.items.length %> items done</p>
             </div>
-            <span class="badge <%= state === 'complete' ? 'b-pass' : (state === 'locked' ? '' : 'b-brand') %>"><%= state === 'complete' ? 'Complete' : (state === 'locked' ? 'Locked' : 'In progress') %></span>
+            <span class="badge <%= state === 'complete' ? 'b-pass' : (state === 'locked' ? '' : 'b-brand') %>" data-milestone-badge><%= state === 'complete' ? 'Complete' : (state === 'locked' ? 'Locked' : 'In progress') %></span>
           </div>
 
           <% if (state === 'locked') { %>
@@ -120,8 +122,12 @@
           <% } %>
         </div>
 
+        <%
+          const nextMilestone = bundle.milestones[index + 1] || null;
+          const nextUrl = nextMilestone ? `/p/${token}/portal?ms=${nextMilestone.id}` : '';
+        %>
         <% if (allDone) { %>
-          <div class="card cta">
+          <div class="card cta" data-cta="signoff">
             <div>
               <div class="eyebrow">Ready to sign</div>
               <h2>All milestones are complete</h2>
@@ -130,13 +136,26 @@
             <a class="btn" href="/p/<%= token %>/signoff">Sign off UAT</a>
           </div>
         <% } else if (state === 'complete') { %>
-          <div class="card cta">
+          <div class="card cta" data-cta="<%= nextUrl ? 'next' : 'signoff' %>">
             <div>
-              <h2>Milestone complete</h2>
-              <p class="muted">Continue with the next milestone.</p>
+              <div class="eyebrow"><%= nextUrl ? 'Milestone complete' : 'Ready to sign' %></div>
+              <h2><%= nextUrl ? 'Milestone complete' : 'All milestones are complete' %></h2>
+              <p class="muted"><%= nextUrl ? 'Continue with the next milestone.' : 'Check the results above, then sign off.' %></p>
             </div>
-            <% const nextIndex = bundle.states.findIndex((s, i) => i > index && s !== 'locked'); %>
-            <% if (nextIndex >= 0) { %><a class="btn" href="/p/<%= token %>/portal?ms=<%= bundle.milestones[nextIndex].id %>">Next milestone</a><% } %>
+            <% if (nextUrl) { %>
+              <a class="btn" href="<%= nextUrl %>">Next milestone</a>
+            <% } else { %>
+              <a class="btn" href="/p/<%= token %>/signoff">Sign off UAT</a>
+            <% } %>
+          </div>
+        <% } else { %>
+          <div class="card cta" data-cta-pending hidden>
+            <div>
+              <div class="eyebrow" data-cta-eyebrow><%= nextUrl ? 'Milestone complete' : 'Ready to sign' %></div>
+              <h2 data-cta-title><%= nextUrl ? 'Milestone complete' : 'All milestones are complete' %></h2>
+              <p class="muted" data-cta-text><%= nextUrl ? 'Continue with the next milestone.' : 'Check the results above, then sign off with a one-time email code and your signature.' %></p>
+            </div>
+            <a class="btn" href="<%= nextUrl || `/p/${token}/signoff` %>" data-cta-link data-signoff-href="/p/<%= token %>/signoff"><%= nextUrl ? 'Next milestone' : 'Sign off UAT' %></a>
           </div>
         <% } %>
       <% } %>

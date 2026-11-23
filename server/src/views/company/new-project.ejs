@@ -119,11 +119,20 @@
     <div class="card">
       <h2>Checklist file</h2>
       <p class="muted">Use the template columns: Milestone order, Milestone name, Item ID, Title, Description / test steps, Expected result, Mandatory (Y/N), Evidence required (Y/N).</p>
-      <label class="dropzone">
-        <input type="file" name="checklist" accept=".xlsx,.csv" required>
-        <span class="drop-title">Choose the filled-in checklist</span>
-        <span class="tiny muted">.xlsx or .csv · up to 5 MB<%= fileName ? ` · currently ${fileName}` : '' %></span>
+      <label class="dropzone" data-dropzone>
+        <input type="file" name="checklist" accept=".xlsx,.csv" required data-checklist-input>
+        <span class="drop-title" data-drop-title>Choose the filled-in checklist</span>
+        <span class="tiny muted" data-drop-meta>.xlsx or .csv · up to 5 MB<%= fileName ? ` · currently ${fileName}` : '' %></span>
       </label>
+      <p class="tiny muted" data-drop-hint>The file is checked as soon as you choose it — nothing is created yet.</p>
+      <div class="checklist-preview" data-checklist-preview hidden>
+        <div class="checklist-preview-head">
+          <span class="spinner" data-preview-spinner hidden aria-hidden="true"></span>
+          <strong data-preview-title></strong>
+        </div>
+        <ul class="tight" data-preview-milestones></ul>
+        <ul class="tight checklist-errors" data-preview-errors hidden></ul>
+      </div>
     </div>
 
     <div class="row gap end">

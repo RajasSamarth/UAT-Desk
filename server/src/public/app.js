@@ -218,6 +218,82 @@
     });
   });
 
+  // Milestone completion UI (updates without a page reload) -----------------
+  function refreshMilestoneUi(data) {
+    var forms = document.querySelectorAll('form[data-auto-save="1"]');
+    var total = forms.length;
+    if (!total) return;
+
+    var done = 0;
+    forms.forEach(function (form) {
+      if (form.querySelector('input[name="status"]:checked')) done += 1;
+    });
+
+    var doneText = document.querySelector('[data-milestone-done]');
+    if (doneText) doneText.textContent = done + ' of ' + total + ' items done';
+
+    var complete = done === total;
+    var headerBadge = document.querySelector('[data-milestone-badge]');
+    if (headerBadge) {
+      headerBadge.className = 'badge ' + (complete ? 'b-pass' : 'b-brand');
+      headerBadge.textContent = complete ? 'Complete' : 'In progress';
+    }
+
+    var currentRail = document.querySelector('.railitem.active');
+    if (currentRail) {
+      var countEl = currentRail.querySelector('[data-rail-count]');
+      if (countEl) countEl.textContent = done + ' of ' + total + ' done';
+      if (complete) {
+        currentRail.classList.add('complete');
+        currentRail.classList.remove('open');
+        var numEl = currentRail.querySelector('[data-rail-num]');
+        if (numEl) numEl.textContent = '✓';
+      }
+    }
+
+    if (!complete) return;
+
+    var pending = document.querySelector('[data-cta-pending]');
+    var revealCta = Boolean(pending && pending.hidden);
+    if (pending) pending.hidden = false;
+
+    if (data && data.allDone && pending) {
+      var eyebrow = pending.querySelector('[data-cta-eyebrow]');
+      var title = pending.querySelector('[data-cta-title]');
+      var text = pending.querySelector('[data-cta-text]');
+      var link = pending.querySelector('[data-cta-link]');
+      if (eyebrow) eyebrow.textContent = 'Ready to sign';
+      if (title) title.textContent = 'All milestones are complete';
+      if (text) text.textContent = 'Check the results above, then sign off with a one-time email code and your signature. This locks the checklist and issues the completion certificate.';
+      if (link) {
+        var signoffHref = link.getAttribute('data-signoff-href');
+        if (signoffHref) link.setAttribute('href', signoffHref);
+        link.textContent = 'Sign off UAT';
+      }
+    }
+
+    if (!(data && data.allDone) && currentRail) {
+      var rails = Array.prototype.slice.call(document.querySelectorAll('.railitem'));
+      var nextRail = rails[rails.indexOf(currentRail) + 1];
+      if (nextRail && nextRail.classList.contains('locked')) {
+        nextRail.classList.remove('locked');
+        nextRail.classList.add('open');
+        nextRail.removeAttribute('aria-disabled');
+        nextRail.removeAttribute('tabindex');
+        var nextHref = nextRail.getAttribute('data-rail-href');
+        if (nextHref) nextRail.setAttribute('href', nextHref);
+        var nextCount = nextRail.querySelector('[data-rail-count]');
+        if (nextCount) nextCount.textContent = nextCount.textContent.replace(' · locked', '');
+      }
+    }
+
+    if (revealCta && pending) {
+      setTimeout(function () {
+        pending.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 120);
+    }
+  }
+
   // Auto-save checklist results ---------------------------------------------
   document.querySelectorAll('form[data-auto-save="1"]').forEach(function (form) {
     var csrfInput = form.querySelector('input[name="_csrf"]');
@@ -308,6 +384,7 @@
               badge.textContent = 'Not applicable';
             }
           }
+          refreshMilestoneUi(result.data);
           if (pendingSave) {
             pendingSave = false;
             doSave();
@@ -357,6 +434,145 @@
       });
     }
   });
+
+  // Checklist upload preview ------------------------------------------------
+  var checklistInput = document.querySelector('[data-checklist-input]');
+  if (checklistInput) {
+    var dropzone = checklistInput.closest('.dropzone');
+    var dropTitle = document.querySelector('[data-drop-title]');
+    var dropMeta = document.querySelector('[data-drop-meta]');
+    var panel = document.querySelector('[data-checklist-preview]');
+    var spinner = document.querySelector('[data-preview-spinner]');
+    var previewTitle = document.querySelector('[data-preview-title]');
+    var previewList = document.querySelector('[data-preview-milestones]');
+    var previewErrors = document.querySelector('[data-preview-errors]');
+    var checklistForm = checklistInput.form;
+    var csrfInput = checklistForm ? checklistForm.querySelector('input[name="_csrf"]') : null;
+    var previewRequest = 0;
+    var defaultDropTitle = dropTitle ? dropTitle.textContent : '';
+    var defaultDropMeta = dropMeta ? dropMeta.textContent : '';
+
+    var formatBytes = function (bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    };
+
+    var resetPreview = function () {
+      if (panel) {
+        panel.hidden = true;
+        panel.classList.remove('ok', 'error');
+      }
+      if (previewList) previewList.innerHTML = '';
+      if (previewErrors) {
+        previewErrors.hidden = true;
+        previewErrors.innerHTML = '';
+      }
+      if (dropzone) dropzone.classList.remove('has-file', 'is-invalid');
+    };
+
+    var showPreviewErrors = function (messages) {
+      if (!panel) return;
+      panel.hidden = false;
+      panel.classList.remove('ok');
+      panel.classList.add('error');
+      if (spinner) spinner.hidden = true;
+      if (previewTitle) previewTitle.textContent = 'Checklist needs attention';
+      if (previewList) previewList.innerHTML = '';
+      if (previewErrors) {
+        previewErrors.hidden = false;
+        previewErrors.innerHTML = '';
+        messages.forEach(function (message) {
+          var li = document.createElement('li');
+          li.textContent = message;
+          previewErrors.appendChild(li);
+        });
+      }
+      if (dropzone) {
+        dropzone.classList.remove('has-file');
+        dropzone.classList.add('is-invalid');
+      }
+    };
+
+    checklistInput.addEventListener('change', function () {
+      var file = checklistInput.files && checklistInput.files[0];
+      resetPreview();
+      if (!file) {
+        if (dropTitle) dropTitle.textContent = defaultDropTitle;
+        if (dropMeta) dropMeta.textContent = defaultDropMeta;
+        return;
+      }
+
+      if (dropTitle) dropTitle.textContent = 'Selected: ' + file.name;
+      if (dropMeta) dropMeta.textContent = formatBytes(file.size) + ' · checking the file…';
+      if (dropzone) dropzone.classList.add('has-file');
+
+      var lowerName = file.name.toLowerCase();
+      if (!/\.(csv|xlsx)$/.test(lowerName)) {
+        showPreviewErrors(['Choose an .xlsx or .csv file.']);
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        showPreviewErrors(['The file is larger than 5 MB.']);
+        return;
+      }
+
+      if (!panel) return;
+      panel.hidden = false;
+      panel.classList.remove('error', 'ok');
+      if (spinner) spinner.hidden = false;
+      if (previewTitle) previewTitle.textContent = 'Checking checklist…';
+      if (previewList) previewList.innerHTML = '';
+      if (previewErrors) {
+        previewErrors.hidden = true;
+        previewErrors.innerHTML = '';
+      }
+
+      var current = ++previewRequest;
+      var data = new FormData();
+      data.append('checklist', file);
+      if (csrfInput) data.append('_csrf', csrfInput.value);
+
+      fetch('/company/projects/preview', {
+        method: 'POST',
+        body: data,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      }).then(function (response) {
+        if (response.redirected && /\/company\/login/.test(response.url)) {
+          return { ok: false, errors: ['Your session expired. Reload the page and sign in again.'] };
+        }
+        return response.json().catch(function () {
+          return { ok: false, errors: ['The server could not read this file.'] };
+        });
+      }).then(function (result) {
+        if (current !== previewRequest) return;
+        if (spinner) spinner.hidden = true;
+        if (!result.ok) {
+          showPreviewErrors(result.errors || (result.error ? [result.error] : ['The checklist was not accepted.']));
+          return;
+        }
+        panel.classList.remove('error');
+        panel.classList.add('ok');
+        if (previewTitle) {
+          previewTitle.textContent = 'Checklist looks good — ' + result.total + ' items across ' +
+            result.milestones.length + (result.milestones.length === 1 ? ' milestone' : ' milestones');
+        }
+        if (dropMeta) dropMeta.textContent = formatBytes(file.size) + ' · ready to create';
+        if (previewList) {
+          previewList.innerHTML = '';
+          result.milestones.forEach(function (milestone) {
+            var li = document.createElement('li');
+            li.textContent = milestone.name + ' — ' + milestone.count + ' items (' +
+              milestone.required + ' required)';
+            previewList.appendChild(li);
+          });
+        }
+      }).catch(function () {
+        if (current !== previewRequest) return;
+        showPreviewErrors(['Could not check the file right now. It will still be validated when you create the project.']);
+      });
+    });
+  }
 
   // Demo fill buttons --------------------------------------------------------
   document.querySelectorAll('.demo-fill-btn').forEach(function (button) {
