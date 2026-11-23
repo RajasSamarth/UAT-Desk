@@ -1007,7 +1007,7 @@ function renderItem(p, it){
   const pressed = s => it.status === s ? 'true' : 'false';
   return `<article class="item${sCls}" aria-labelledby="h-${it.id}">
     <div class="item-top"><div><span class="code">${esc(it.code)}</span><h3 id="h-${it.id}">${esc(it.title)}</h3>
-      <div class="tags">${it.mandatory ? '<span class="tag req">Required</span>' : '<span class="tag">Optional</span>'}${it.evidence ? '<span class="tag">Screenshot needed</span>' : ''}</div></div>
+      <div class="tags">${it.mandatory ? '<span class="tag req">Required</span>' : '<span class="tag">Optional</span>'}${it.evidence ? '<span class="tag">Evidence</span>' : ''}</div></div>
       <div class="row">${itemBadge(it.status)}<button type="button" class="btn ghost sm" data-action="toggle-details" data-iid="${it.id}" aria-expanded="${exp}">${exp ? 'Hide steps' : 'Show steps'}</button></div></div>
     ${exp ? `<div class="details"><div><h4>What to do</h4><p>${esc(it.steps || 'No steps given.')}</p></div><div><h4>Expected result</h4><p>${esc(it.expected || 'Not specified.')}</p></div></div>` : ''}
     ${it.status === 'retest' ? `<div class="banner retest"><b>Fixed by the company team.</b> ${esc(it.fixNote || '')} Test it again and mark the new result.</div>` : ''}
@@ -1022,7 +1022,7 @@ function renderItem(p, it){
         <textarea id="c-${it.id}" data-comment="${it.id}" placeholder="${it.status === 'fail' ? 'What went wrong?' : 'Comment (required if it fails)'}">${esc(it.comment)}</textarea></div>
     </div>
     <div class="evidence">${it.image ? `<button type="button" class="thumb-btn" data-action="view-image" data-pid="${p.id}" data-iid="${it.id}"><img class="thumb" src="${it.image}" alt="Your screenshot for ${esc(it.code)}"></button><button type="button" class="btn sm ghost" data-action="remove-image" data-iid="${it.id}">Remove screenshot</button>` : ''}
-      <label class="btn sm filebtn">${it.image ? 'Replace screenshot' : 'Attach screenshot'}<input type="file" accept="image/*" data-evidence="${it.id}"></label></div>
+      <label class="btn sm filebtn">${it.image ? 'Replace screenshot' : 'Attach screenshot (optional)'}<input type="file" accept="image/*" data-evidence="${it.id}"></label></div>
     ${err ? `<p class="err" role="alert">${esc(err)}</p>` : ''}
     ${it.testedBy && ['pass','fail','na'].includes(it.status) ? `<div class="meta">Marked ${ITEM_META[it.status][0].toLowerCase()} by ${esc(it.testedBy)} on ${fmt(it.testedAt)}</div>` : ''}
   </article>`;
@@ -1269,7 +1269,6 @@ function setStatus(iid, s){
     it.history.push({at:Date.now(), by:t.name, status:null, comment:it.comment});
     log(p, t.name, 'Cleared the result for ' + it.code);
   } else {
-    if (s === 'pass' && it.evidence && !it.image){ UI.errors[iid] = 'Attach a screenshot before marking this item as passed.'; save(); render(); return; }
     if (s === 'fail' && !it.comment.trim()){ UI.errors[iid] = 'Describe what went wrong in the comment box, then mark Fail.'; save(); render(); const ta = document.getElementById('c-' + iid); if (ta) ta.focus(); return; }
     if (s === 'na' && it.mandatory) return;
     it.status = s; it.testedBy = t.name; it.testedByEmail = t.email; it.testedAt = Date.now();
@@ -1390,7 +1389,7 @@ document.addEventListener('click', async e => {
     case 'remove-image': {
       const pp = proj(UI.client.projectId); const {it} = findItem(pp, el.dataset.iid);
       captureComments(); it.image = null;
-      if (it.status === 'pass' && it.evidence){ it.status = null; it.testedAt = null; UI.errors[it.id] = 'Screenshot removed, so this item is no longer marked as passed.'; }
+      delete UI.errors[it.id];
       save(); render(); break; }
     case 'start-signoff': {
       const pp = proj(UI.client.projectId); const t = UI.client.tester;

@@ -62,7 +62,7 @@
                 <div>
                   <div class="itemrow-top">
                     <span class="code mono"><%= item.code %></span>
-                    <% if (im) { %><span class="badge <%= im.cls %>"><%= im.label %></span><% } else { %><span class="badge">Not tested</span><% } %>
+                    <% if (im) { %><span class="badge <%= im.cls %>" data-badge-item="<%= item.id %>"><%= im.label %></span><% } else { %><span class="badge" data-badge-item="<%= item.id %>">Not tested</span><% } %>
                     <% if (item.mandatory) { %><span class="tag">Required</span><% } %>
                     <% if (item.evidence) { %><span class="tag">Evidence</span><% } %>
                   </div>

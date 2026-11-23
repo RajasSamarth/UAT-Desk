@@ -294,6 +294,20 @@
         isSaving = false;
         if (result.ok) {
           setStatus('Saved ✓', '#226a4b', 2000);
+          var itemId = form.getAttribute('data-item-id');
+          var badge = document.querySelector('[data-badge-item="' + itemId + '"]');
+          if (badge) {
+            if (statusValue === 'pass') {
+              badge.className = 'badge b-pass';
+              badge.textContent = 'Passed';
+            } else if (statusValue === 'fail') {
+              badge.className = 'badge b-fail';
+              badge.textContent = 'Failed';
+            } else if (statusValue === 'na') {
+              badge.className = 'badge';
+              badge.textContent = 'Not applicable';
+            }
+          }
           if (pendingSave) {
             pendingSave = false;
             doSave();
@@ -310,6 +324,12 @@
         setStatus('Network error', '#b43a32', 3000);
       });
     }
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      doSave();
+    });
 
     radios.forEach(function (radio) {
       radio.addEventListener('change', function () {
