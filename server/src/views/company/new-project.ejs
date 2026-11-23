@@ -1,0 +1,135 @@
+<%- include('../partials/head', { title, side: 'company' }) %>
+<section class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow"><a href="/company">Dashboard</a> / New project</div>
+      <h1>New UAT project</h1>
+      <p class="muted">Upload the filled-in checklist once. It is copied into the project, so later edits to the source file never change what the client signs.</p>
+    </div>
+    <div class="row gap">
+      <a class="btn ghost" href="/company/template.xlsx">Download .xlsx template</a>
+      <a class="btn ghost" href="/company/template.csv">Download .csv template</a>
+    </div>
+  </div>
+
+  <% if (errors.length) { %>
+    <div class="notice error">
+      <strong>Fix these before creating the project:</strong>
+      <ul class="tight"><% for (const e of errors) { %><li><%= e %></li><% } %></ul>
+    </div>
+  <% } %>
+
+  <% if (checklistErrors.length) { %>
+    <div class="notice error">
+      <strong>The checklist was not accepted:</strong>
+      <ul class="tight"><% for (const e of checklistErrors) { %><li><%= e %></li><% } %></ul>
+      <p class="tiny">Nothing was imported. Correct the rows in the file and upload it again.</p>
+    </div>
+  <% } %>
+
+  <% if (preview) { %>
+    <div class="notice ok">
+      <strong>Checklist read successfully<%= fileName ? ` from ${fileName}` : '' %>.</strong>
+      <span><%= preview.reduce((n, m) => n + m.count, 0) %> items across <%= preview.length %> milestones:</span>
+      <ul class="tight"><% for (const m of preview) { %><li><%= m.name %> — <%= m.count %> items (<%= m.required %> required)</li><% } %></ul>
+    </div>
+  <% } %>
+
+  <form method="post" action="/company/projects" enctype="multipart/form-data" class="project-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="grid-2">
+      <div class="card">
+        <h2>What is being tested</h2>
+
+        <div class="mode-block" data-mode-block>
+          <div class="seg" data-mode-group>
+            <label><input type="radio" name="productMode" value="existing" <%= values.productMode === 'existing' ? 'checked' : '' %>> Existing product</label>
+            <label><input type="radio" name="productMode" value="new" <%= values.productMode === 'new' ? 'checked' : '' %>> Add a product</label>
+          </div>
+          <div data-mode-panel="existing">
+            <label class="field">
+              <span>Product</span>
+              <select name="productId">
+                <% for (const p of products) { %>
+                  <option value="<%= p.id %>" <%= values.productId === p.id ? 'selected' : '' %>><%= p.name %></option>
+                <% } %>
+                <% if (!products.length) { %><option value="">No products yet — add one</option><% } %>
+              </select>
+            </label>
+          </div>
+          <div data-mode-panel="new">
+            <label class="field">
+              <span>New product name</span>
+              <input type="text" name="newProduct" value="<%= values.newProduct %>" placeholder="e.g. Acme Inventory">
+            </label>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>Release or version</span>
+          <input type="text" name="version" value="<%= values.version %>" placeholder="v1.0" required>
+        </label>
+
+        <div class="mode-block" data-mode-block>
+          <div class="seg" data-mode-group>
+            <label><input type="radio" name="clientMode" value="existing" <%= values.clientMode === 'existing' ? 'checked' : '' %>> Existing client</label>
+            <label><input type="radio" name="clientMode" value="new" <%= values.clientMode === 'new' ? 'checked' : '' %>> Add a client</label>
+          </div>
+          <div data-mode-panel="existing">
+            <label class="field">
+              <span>Client</span>
+              <select name="clientId">
+                <% for (const c of clients) { %>
+                  <option value="<%= c.id %>" <%= values.clientId === c.id ? 'selected' : '' %>><%= c.name %></option>
+                <% } %>
+                <% if (!clients.length) { %><option value="">No clients yet — add one</option><% } %>
+              </select>
+            </label>
+          </div>
+          <div data-mode-panel="new">
+            <label class="field">
+              <span>New client name</span>
+              <input type="text" name="newClient" value="<%= values.newClient %>" placeholder="e.g. Northwind Logistics">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Link and responsibility</h2>
+        <label class="field">
+          <span>Company contact</span>
+          <input type="text" name="ownerName" value="<%= values.ownerName %>" required>
+        </label>
+        <label class="field">
+          <span>Company contact email <small>(gets the signed certificate)</small></span>
+          <input type="email" name="ownerEmail" value="<%= values.ownerEmail %>">
+        </label>
+        <label class="field">
+          <span>Link stays available until</span>
+          <input type="date" name="expiry" value="<%= values.expiry %>" required>
+        </label>
+        <div class="notice">
+          A project ID and a one-time-shown password are generated when you create the project. Access can be revoked or given a new end date at any time.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Checklist file</h2>
+      <p class="muted">Use the template columns: Milestone order, Milestone name, Item ID, Title, Description / test steps, Expected result, Mandatory (Y/N), Evidence required (Y/N).</p>
+      <label class="dropzone">
+        <input type="file" name="checklist" accept=".xlsx,.csv" required>
+        <span class="drop-title">Choose the filled-in checklist</span>
+        <span class="tiny muted">.xlsx or .csv · up to 5 MB<%= fileName ? ` · currently ${fileName}` : '' %></span>
+      </label>
+    </div>
+
+    <div class="row gap end">
+      <a class="btn ghost" href="/company">Cancel</a>
+      <button class="btn" type="submit">Create project and generate the client link</button>
+    </div>
+  </form>
+</section>
+<%- include('../partials/foot') %>

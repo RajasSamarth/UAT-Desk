@@ -1,0 +1,102 @@
+<%- include('../partials/head', { title, side: 'client' }) %>
+<%
+  const so = bundle.signoff;
+  const token = bundle.link.token;
+  const summary = Array.isArray(so.summary) ? so.summary : [];
+%>
+<section class="wrap">
+  <div class="page-head cert-head">
+    <div>
+      <div class="eyebrow">Signed and stored</div>
+      <h1>UAT completion certificate</h1>
+      <p class="muted">Verification ID <strong class="mono"><%= so.verification_id %></strong></p>
+    </div>
+    <div class="row gap wrap-actions">
+      <a class="btn ghost" href="/p/<%= token %>/certificate.pdf">Download PDF</a>
+      <button type="button" class="btn ghost" data-print>Print</button>
+      <a class="btn" href="/verify?id=<%= encodeURIComponent(so.verification_id) %>">Public verification</a>
+    </div>
+  </div>
+
+  <article class="certificate">
+    <header class="cert-band">
+      <div>
+        <div class="cert-kicker">UAT Desk</div>
+        <h2>UAT Completion Certificate</h2>
+      </div>
+      <div class="cert-id">
+        <span>Verification ID</span>
+        <strong class="mono"><%= so.verification_id %></strong>
+      </div>
+    </header>
+
+    <p class="cert-statement">
+      This certifies that <strong><%= bundle.client.name %></strong> has completed user acceptance testing of
+      <strong><%= bundle.product.name %> <%= bundle.project.version %></strong> and accepts it as meeting the agreed
+      UAT checklist of <%= bundle.stats.total %> items across <%= bundle.milestones.length %> milestones.
+    </p>
+
+    <div class="cert-details">
+      <div><span>Client</span><strong><%= bundle.client.name %></strong></div>
+      <div><span>Product</span><strong><%= bundle.product.name %> <%= bundle.project.version %></strong></div>
+      <div><span>Project ID</span><strong class="mono"><%= token %></strong></div>
+      <div><span>Company contact</span><strong><%= bundle.project.owner_name %></strong></div>
+      <div><span>UAT opened</span><strong><%= fmtDate(bundle.project.created_at) %></strong></div>
+      <div><span>Signed on</span><strong><%= fmt(so.signed_at) %></strong></div>
+    </div>
+
+    <h3 class="cert-section">Milestones</h3>
+    <table class="table cert-table">
+      <thead><tr><th>Milestone</th><th>Items</th><th>Passed</th><th>Not applicable</th><th>Completed</th></tr></thead>
+      <tbody>
+        <% for (const m of summary) { %>
+          <tr>
+            <td><%= m.name %></td>
+            <td><%= m.total %></td>
+            <td><%= m.pass %></td>
+            <td><%= m.na %></td>
+            <td><%= m.completedAt ? fmtDate(m.completedAt) : '—' %></td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+
+    <div class="cert-sign">
+      <div>
+        <span class="cert-label">Signed for <%= bundle.client.name %></span>
+        <% if (signatureUrl) { %>
+          <img class="cert-sig" src="<%= signatureUrl %>" alt="Signature of <%= so.signer_name %>">
+        <% } else { %>
+          <div class="cert-typed"><%= so.signer_name %></div>
+          <div class="tiny muted">Typed electronic signature</div>
+        <% } %>
+        <div class="cert-sigline"></div>
+        <strong><%= so.signer_name %></strong>
+        <div class="tiny"><%= so.signer_designation %>, <%= bundle.client.name %></div>
+        <div class="tiny muted"><%= so.signer_email %></div>
+        <div class="tiny muted">Email verified by one-time code on <%= fmt(so.otp_verified_at) %></div>
+      </div>
+      <div class="cert-meta">
+        <div><span class="cert-label">Signed</span><strong><%= fmt(so.signed_at) %></strong></div>
+        <div><span class="cert-label">Signer IP</span><strong class="mono"><%= so.ip || 'not captured' %></strong></div>
+        <div><span class="cert-label">Signature type</span><strong><%= so.signature_kind === 'drawn' ? 'Drawn' : 'Typed' %> electronic</strong></div>
+      </div>
+    </div>
+
+    <div class="cert-fingerprint">
+      <span class="cert-label">Record fingerprint (SHA-256)</span>
+      <code><%= so.record_hash %></code>
+      <% if (so.pdf_hash) { %><span class="cert-label mt">PDF fingerprint (SHA-256)</span><code><%= so.pdf_hash %></code><% } %>
+    </div>
+
+    <footer class="cert-foot">
+      Check this certificate at <a href="<%= verifyUrl %>"><%= verifyUrl %></a> using verification ID
+      <strong class="mono"><%= so.verification_id %></strong>.
+    </footer>
+  </article>
+
+  <div class="notice mt">
+    This is an electronic signature with an audit trail, not a certificate-based digital signature. The record fingerprint and PDF hash let a verifier detect changes to the stored record or the downloaded PDF.
+  </div>
+</section>
+<%- include('../partials/foot') %>

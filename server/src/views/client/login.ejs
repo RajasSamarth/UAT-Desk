@@ -1,0 +1,29 @@
+<%- include('../partials/head', { title, side: 'client' }) %>
+<section class="wrap narrow authwrap">
+  <div class="card authcard">
+    <div class="eyebrow">Client acceptance testing</div>
+    <h1><%= projectBundle.product.name %> <span class="muted"><%= projectBundle.project.version %></span></h1>
+    <p class="muted">Prepared for <strong><%= projectBundle.client.name %></strong> by <%= projectBundle.project.owner_name %>.</p>
+
+    <% if (error) { %><div class="notice error"><%= error %></div><% } %>
+
+    <form method="post" action="/p/<%= projectBundle.link.token %>" class="stack">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">
+        <span>Password from your invitation</span>
+        <input type="password" name="password" autocomplete="current-password" required autofocus>
+      </label>
+      <button class="btn block" type="submit">Open the checklist</button>
+    </form>
+
+    <div class="kv mt"><span>Project ID</span><code><%= projectBundle.link.token %></code></div>
+    <div class="kv"><span>Available until</span><strong><%= fmtDate(projectBundle.link.expires_at) %></strong></div>
+    <p class="tiny muted mt">This link is personal to your organisation. Do not forward it. Five wrong passwords lock access for 15 minutes.</p>
+
+    <div class="row between mt" style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line);">
+      <a href="/client" class="tiny">&larr; Switch Project ID</a>
+      <a href="/company/login" class="tiny">Company sign in &rarr;</a>
+    </div>
+  </div>
+</section>
+<%- include('../partials/foot') %>

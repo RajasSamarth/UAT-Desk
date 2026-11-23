@@ -1,0 +1,63 @@
+<%- include('../partials/head', { title, side: 'company' }) %>
+<section class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Company workspace</div>
+      <h1>UAT projects</h1>
+      <p class="muted">Every checklist is snapshotted into its project. Client results, fixes and signatures are kept on the server.</p>
+    </div>
+    <div class="row gap wrap-actions">
+      <a class="btn ghost" href="/company/template.xlsx">Checklist template</a>
+      <a class="btn" href="/company/projects/new">New UAT project</a>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><span class="stat-n"><%= stats.inTest %></span><span class="stat-l">In testing</span></div>
+    <div class="stat"><span class="stat-n"><%= stats.toFix %></span><span class="stat-l">Items to fix</span></div>
+    <div class="stat"><span class="stat-n"><%= stats.waiting %></span><span class="stat-l">Waiting for signature</span></div>
+    <div class="stat"><span class="stat-n"><%= stats.signed %></span><span class="stat-l">Signed off</span></div>
+  </div>
+
+  <% if (!projects.length) { %>
+    <div class="card empty">
+      <h2>No UAT projects yet</h2>
+      <p class="muted">Start with the Excel template, fill one row per checklist item, then create a project. The client gets a link, a project ID and a password.</p>
+      <a class="btn" href="/company/projects/new">Create the first project</a>
+    </div>
+  <% } else { %>
+    <div class="card tablecard">
+      <table class="table projects-table">
+        <thead>
+          <tr>
+            <th>Product and release</th>
+            <th>Client</th>
+            <th>Progress</th>
+            <th>Status</th>
+            <th>Current milestone</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% for (const p of projects) { const meta = statusMeta[p.status] || statusMeta['in-progress']; const pct = p.total ? Math.round((p.done / p.total) * 100) : 0; %>
+            <tr>
+              <td>
+                <a class="strong" href="/company/projects/<%= p.id %>"><%= p.product_name %> <span class="muted"><%= p.version %></span></a>
+                <div class="tiny muted mono"><%= p.token %></div>
+              </td>
+              <td><%= p.client_name %><div class="tiny muted"><%= p.owner_name %></div></td>
+              <td class="progress-cell">
+                <div class="bar"><i style="width: <%= pct %>%"></i></div>
+                <div class="tiny muted"><%= p.done %> of <%= p.total %> passed or N/A<% if (p.fail) { %> · <span class="failtext"><%= p.fail %> failed</span><% } %></div>
+              </td>
+              <td><span class="badge <%= meta.cls %>"><%= meta.label %></span></td>
+              <td class="tiny"><%= p.current_milestone || (p.status === 'signed' ? 'Complete' : '—') %></td>
+              <td class="right"><a class="btn ghost sm" href="/company/projects/<%= p.id %>">Open</a></td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+<%- include('../partials/foot') %>

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <title><%= title %> · UAT Desk</title>
+  <link rel="stylesheet" href="/static/styles.css?v=<%= typeof assetVersion !== 'undefined' ? assetVersion : '1' %>">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<%
+  const homeHref = side === 'company'
+    ? '/company'
+    : (side === 'client' && typeof projectBundle !== 'undefined' && projectBundle
+        ? `/p/${projectBundle.link.token}/portal`
+        : (side === 'client' ? '/client' : '/'));
+  const subLabel = side === 'company'
+    ? 'company workspace'
+    : (side === 'client' && typeof projectBundle !== 'undefined' && projectBundle
+        ? `${projectBundle.product.name} ${projectBundle.project.version}`
+        : (side === 'client' ? 'client testing portal' : 'acceptance testing and sign-off'));
+%>
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="<%= homeHref %>">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="30" height="30" fill="none">
+          <rect x="2" y="2" width="28" height="28" rx="8" fill="currentColor" opacity=".12"/>
+          <path d="M9 16.5l4.2 4.2L23 11" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="brand-text">UAT Desk<small><%= subLabel %></small></span>
+    </a>
+
+    <nav class="mainnav" aria-label="Main">
+      <% if (side === 'company') { %>
+        <a class="navbtn <%= typeof currentPath !== 'undefined' && currentPath === '/company' ? 'active' : '' %>" href="/company">Dashboard</a>
+        <a class="navbtn <%= typeof currentPath !== 'undefined' && currentPath === '/company/projects/new' ? 'active' : '' %>" href="/company/projects/new">New UAT project</a>
+        <a class="navbtn <%= typeof currentPath !== 'undefined' && currentPath === '/verify' ? 'active' : '' %>" href="/verify">Verify certificate</a>
+        <a class="navbtn" href="/client" title="Switch to client portal">Client portal &rarr;</a>
+      <% } else if (side === 'client' && typeof projectBundle !== 'undefined' && projectBundle) { %>
+        <a class="navbtn active" href="/p/<%= projectBundle.link.token %>/portal">Checklist</a>
+        <% if (projectBundle.signoff) { %>
+          <a class="navbtn" href="/p/<%= projectBundle.link.token %>/certificate">Certificate</a>
+        <% } %>
+        <a class="navbtn" href="/client">Client portal</a>
+        <a class="navbtn" href="/company" title="Switch to company workspace">Company portal &rarr;</a>
+      <% } else { %>
+        <a class="navbtn <%= typeof currentPath !== 'undefined' && currentPath === '/client' ? 'active' : '' %>" href="/client">Client portal</a>
+        <a class="navbtn <%= typeof currentPath !== 'undefined' && (currentPath === '/company/login' || currentPath === '/company') ? 'active' : '' %>" href="/company">Company portal</a>
+        <a class="navbtn <%= typeof currentPath !== 'undefined' && currentPath === '/verify' ? 'active' : '' %>" href="/verify">Verify certificate</a>
+      <% } %>
+    </nav>
+
+    <div class="top-actions">
+      <% if (side === 'company' && companyUser) { %>
+        <span class="who" title="Signed in"><%= companyUser.email %></span>
+        <form method="post" action="/company/logout" class="inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn ghost sm" type="submit">Sign out</button>
+        </form>
+      <% } else if (side === 'client' && typeof tester !== 'undefined' && tester) { %>
+        <span class="who" title="Tester"><%= tester.name %></span>
+        <form method="post" action="/p/<%= projectBundle.link.token %>/logout" class="inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn ghost sm" type="submit">Sign out</button>
+        </form>
+      <% } %>
+      <button type="button" class="btn ghost sm iconbtn" data-theme-toggle title="Switch light or dark theme" aria-label="Switch theme">◐</button>
+    </div>
+  </div>
+</header>
+<main id="app">
+  <% if (typeof flash !== 'undefined' && flash) { %>
+    <div class="flashbar">
+      <div class="flash <%= flash.type %>" role="status">
+        <span><%= flash.message %></span>
+        <button type="button" class="flash-x" data-dismiss aria-label="Dismiss">×</button>
+      </div>
+    </div>
+  <% } %>

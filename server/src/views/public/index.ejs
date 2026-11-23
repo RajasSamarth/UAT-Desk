@@ -1,0 +1,90 @@
+<%- include('../partials/head', { title, side: 'public' }) %>
+<section class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Acceptance Testing & Verification</div>
+      <h1>UAT Desk Portals</h1>
+      <p class="muted">A secure, server-backed platform for running client acceptance testing, managing release checklists, and collecting tamper-evident digital sign-offs.</p>
+    </div>
+  </div>
+
+  <div class="grid-2 mt">
+    <!-- Client Portal Card -->
+    <div class="card portal-card">
+      <div>
+        <div class="row gap" style="margin-bottom: 16px;">
+          <div class="brand-mark" style="color: var(--ok); background: var(--ok-soft); border-color: var(--ok-border); padding: 10px;">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+              <path d="m9 14 2 2 4-4"/>
+            </svg>
+          </div>
+          <div>
+            <div class="eyebrow" style="margin-bottom: 2px;">For Clients & Testers</div>
+            <h2 style="margin: 0;">Client Portal</h2>
+          </div>
+        </div>
+        <p class="muted">Access your release acceptance checklist, test milestone items in sequence, attach screenshot evidence, and sign off with an email verification code.</p>
+        <ul style="margin: 16px 0 0; padding-left: 20px; font-size: 13.5px; color: var(--muted); line-height: 1.7;">
+          <li>Sequential milestone progression with automatic unlocking</li>
+          <li>Auto-saving Pass / Fail / N/A results with notes</li>
+          <li>Digital signature with 6-digit email OTP verification</li>
+        </ul>
+      </div>
+      <div class="stack mt" style="margin-top: 26px;">
+        <span class="tiny muted">Have a Project ID and password from your invitation?</span>
+        <a href="/client" class="btn primary">Open Client Portal &rarr;</a>
+      </div>
+    </div>
+
+    <!-- Company Portal Card -->
+    <div class="card portal-card">
+      <div>
+        <div class="row gap" style="margin-bottom: 16px;">
+          <div class="brand-mark" style="color: var(--brand); background: var(--brand-soft); border-color: var(--brand-border); padding: 10px;">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="20" height="14" x="2" y="7" rx="2" ry="2"/>
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+            </svg>
+          </div>
+          <div>
+            <div class="eyebrow" style="margin-bottom: 2px;">For Project Managers & Release Teams</div>
+            <h2 style="margin: 0;">Company Workspace</h2>
+          </div>
+        </div>
+        <p class="muted">Upload Excel/CSV checklist templates, generate secure client access links, monitor testing progress in real time, and manage the fix & retest loop.</p>
+        <ul style="margin: 16px 0 0; padding-left: 20px; font-size: 13.5px; color: var(--muted); line-height: 1.7;">
+          <li>Centralized dashboard across all client releases</li>
+          <li>Instant checklist validation from template files</li>
+          <li>Verifiable completion certificate generation (PDFKit)</li>
+        </ul>
+      </div>
+      <div class="stack mt" style="margin-top: 26px;">
+        <span class="tiny muted"><%= companyUser ? `Signed in as ${companyUser.email}` : 'Sign in with your company email credentials.' %></span>
+        <a href="/company" class="btn"><%= companyUser ? 'Go to Dashboard &rarr;' : 'Company Sign In &rarr;' %></a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Verification Banner -->
+  <div class="card mt" style="margin-top: 24px; padding: 22px 26px;">
+    <div class="row between">
+      <div class="row gap">
+        <div class="brand-mark" style="color: var(--muted); background: var(--surface-2); border-color: var(--line); padding: 10px;">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+        <div>
+          <div class="eyebrow" style="margin-bottom: 2px;">Public Verification</div>
+          <h3 style="margin: 0;">Verify a Completion Certificate</h3>
+          <p class="muted tiny" style="margin: 2px 0 0;">Confirm the authenticity and SHA-256 integrity hash of any issued UAT certificate.</p>
+        </div>
+      </div>
+      <a href="/verify" class="btn ghost sm">Verify Certificate &rarr;</a>
+    </div>
+  </div>
+</section>
+<%- include('../partials/foot') %>

@@ -1,0 +1,131 @@
+<%- include('../partials/head', { title, side: 'client' }) %>
+<%
+  const token = projectBundle.link.token;
+  const done = bundle.stats.done;
+  const total = bundle.stats.total;
+%>
+<section class="wrap narrow">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow"><a href="/p/<%= token %>/portal">Checklist</a> / Sign off</div>
+      <h1>Sign off UAT</h1>
+      <p class="muted"><%= projectBundle.client.name %> · <%= projectBundle.product.name %> <%= projectBundle.project.version %> · <%= done %> of <%= total %> items complete.</p>
+    </div>
+  </div>
+
+  <ol class="stepper">
+    <li class="<%= step === 1 ? 'active' : (step > 1 ? 'done' : '') %>"><span>1</span> Signer details</li>
+    <li class="<%= step === 2 ? 'active' : (step > 2 ? 'done' : '') %>"><span>2</span> Email code</li>
+    <li class="<%= step === 3 ? 'active' : '' %>"><span>3</span> Signature</li>
+  </ol>
+
+  <% if (step === 1) { %>
+    <div class="card">
+      <h2>Who is signing?</h2>
+      <p class="muted">This is the person accepting the release on behalf of <%= projectBundle.client.name %>. The name and designation appear on the certificate.</p>
+      <form method="post" action="/p/<%= token %>/signoff/start" class="stack">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label class="field">
+          <span>Full name</span>
+          <input type="text" name="name" value="<%= state ? state.name : (tester ? tester.name : '') %>" autocomplete="name" required>
+        </label>
+        <label class="field">
+          <span>Designation or role</span>
+          <input type="text" name="designation" value="<%= state ? state.designation : '' %>" placeholder="e.g. Head of Operations" required>
+        </label>
+        <label class="field">
+          <span>Work email for the one-time code</span>
+          <input type="email" name="email" value="<%= state ? state.email : (tester ? tester.email : '') %>" autocomplete="email" required>
+        </label>
+        <button class="btn" type="submit">Send the one-time code</button>
+      </form>
+    </div>
+  <% } else if (step === 2) { %>
+    <div class="card">
+      <h2>Check your email</h2>
+      <p class="muted">A six-digit code was sent to <strong><%= state.email %></strong>. It expires in 10 minutes.</p>
+      <% if (devCode) { %>
+        <div class="notice ok"><strong>Development mode:</strong> no SMTP server is configured. The code is <span class="mono big-code"><%= devCode %></span>.</div>
+      <% } %>
+      <form method="post" action="/p/<%= token %>/signoff/verify" class="stack">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label class="field">
+          <span>One-time code</span>
+          <input class="otp" type="text" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required autofocus placeholder="000000">
+        </label>
+        <button class="btn" type="submit">Verify code</button>
+      </form>
+      <div class="row gap mt">
+        <form method="post" action="/p/<%= token %>/signoff/start">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="name" value="<%= state.name %>">
+          <input type="hidden" name="designation" value="<%= state.designation %>">
+          <input type="hidden" name="email" value="<%= state.email %>">
+          <button class="btn ghost sm" type="submit">Send a new code</button>
+        </form>
+        <a class="btn ghost sm" href="/p/<%= token %>/signoff?restart=1">Change signer details</a>
+      </div>
+    </div>
+  <% } else { %>
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="eyebrow">Email verified</div>
+          <h2><%= state.name %></h2>
+          <p class="muted"><%= state.designation %>, <%= projectBundle.client.name %> · <%= state.email %></p>
+        </div>
+        <span class="badge b-pass">Code verified</span>
+      </div>
+      <div class="summary-grid">
+        <div><span class="label">Checklist</span><strong><%= total %> items</strong></div>
+        <div><span class="label">Passed</span><strong><%= bundle.stats.done - bundle.stats.na %></strong></div>
+        <div><span class="label">Not applicable</span><strong><%= bundle.stats.na %></strong></div>
+        <div><span class="label">Milestones</span><strong><%= bundle.milestones.length %></strong></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Your signature</h2>
+      <p class="muted">Draw your signature with a mouse, finger or stylus, or type your full name. The signature, your email verification and the checklist are stored together.</p>
+
+      <form method="post" action="/p/<%= token %>/signoff/submit" id="signoff-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="signature" id="signature-data" value="">
+
+        <div class="seg" data-mode-group data-sig-group>
+          <label><input type="radio" name="signatureKind" value="drawn" checked> Draw signature</label>
+          <label><input type="radio" name="signatureKind" value="typed"> Type signature</label>
+        </div>
+
+        <div data-sig-panel="drawn">
+          <div class="sigpad-wrap">
+            <canvas id="sigpad" width="900" height="260" aria-label="Signature drawing area"></canvas>
+            <div class="sigpad-hint">Sign above the line</div>
+          </div>
+          <div class="row between mt">
+            <span class="tiny muted">Use a mouse, trackpad, finger or stylus.</span>
+            <button type="button" class="btn ghost sm" data-sig-clear>Clear</button>
+          </div>
+        </div>
+
+        <div data-sig-panel="typed" hidden>
+          <label class="field">
+            <span>Type your full name</span>
+            <input type="text" name="signatureName" value="<%= state.name %>" autocomplete="name">
+          </label>
+        </div>
+
+        <label class="consent">
+          <input type="checkbox" name="consent" required>
+          <span>I confirm that I have reviewed the results above and that I accept this release on behalf of <%= projectBundle.client.name %>. I understand this is an electronic signature.</span>
+        </label>
+
+        <div class="row between mt">
+          <span class="tiny muted">Signed at <%= fmt(new Date()) %> · IP and browser are recorded.</span>
+          <button class="btn" type="submit">Sign and issue certificate</button>
+        </div>
+      </form>
+    </div>
+  <% } %>
+</section>
+<%- include('../partials/foot') %>

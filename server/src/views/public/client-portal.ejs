@@ -1,0 +1,60 @@
+<%- include('../partials/head', { title, side: 'client' }) %>
+<section class="wrap narrow authwrap">
+  <div class="card authcard">
+    <div class="auth-mark" style="color: var(--ok); background: var(--ok-soft); border-color: var(--ok-border);">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+        <path d="m9 14 2 2 4-4"/>
+      </svg>
+    </div>
+    <div class="center">
+      <div class="eyebrow">Client Acceptance Testing</div>
+      <h1>Open your UAT checklist</h1>
+      <p class="muted">Enter the Project ID and password from your invitation email to start acceptance testing.</p>
+    </div>
+
+    <% if (error) { %><div class="notice error"><%= error %></div><% } %>
+
+    <form method="post" action="/client" class="stack" id="client-login-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">
+        <span>Project ID</span>
+        <input type="text" name="token" id="token-input" class="mono" value="<%= typeof token !== 'undefined' && token ? token : '' %>" placeholder="e.g. UAT-ACME23" autocomplete="username" required autofocus>
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input type="password" name="password" id="password-input" autocomplete="current-password" placeholder="Password from invitation" required>
+      </label>
+      <button class="btn block" type="submit">Open checklist</button>
+    </form>
+
+    <% if (isDev) { %>
+      <div class="demo-box mt" style="margin-top: 22px; padding: 16px; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: 10px;">
+        <div class="eyebrow" style="margin-bottom: 8px;">Demo Shortcuts (Dev Mode)</div>
+        <div class="stack" style="gap: 10px;">
+          <div class="row between">
+            <div>
+              <strong>Acme Retail</strong>
+              <small class="mono muted" style="display: block;">UAT-ACME23 / acme-uat-2026</small>
+            </div>
+            <button type="button" class="btn sm ghost demo-fill-btn" data-token="UAT-ACME23" data-pw="acme-uat-2026">Fill in</button>
+          </div>
+          <div class="row between">
+            <div>
+              <strong>Northwind Logistics</strong>
+              <small class="mono muted" style="display: block;">UAT-NWFS10 / northwind-fs-01</small>
+            </div>
+            <button type="button" class="btn sm ghost demo-fill-btn" data-token="UAT-NWFS10" data-pw="northwind-fs-01">Fill in</button>
+          </div>
+        </div>
+      </div>
+    <% } %>
+
+    <div class="row between mt" style="margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line);">
+      <span class="tiny muted">Company team managing releases?</span>
+      <a href="/company/login" class="tiny">Company sign in &rarr;</a>
+    </div>
+  </div>
+</section>
+<%- include('../partials/foot') %>

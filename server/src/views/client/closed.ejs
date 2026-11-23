@@ -1,0 +1,18 @@
+<%- include('../partials/head', { title, side: 'client' }) %>
+<section class="wrap narrow authwrap">
+  <div class="card authcard center">
+    <div class="auth-mark"><%= reason === 'revoked' ? '⏻' : '⌛' %></div>
+    <h1><%= reason === 'revoked' ? 'Client access is turned off' : 'This link has expired' %></h1>
+    <p class="muted">
+      <% if (reason === 'revoked') { %>
+        <%= projectBundle.project.owner_name %> has turned off access to this UAT project. Contact them if you still need to test.
+      <% } else { %>
+        The testing window for <%= projectBundle.product.name %> <%= projectBundle.project.version %> ended on
+        <%= fmtDate(projectBundle.link.expires_at) %>. Contact <%= projectBundle.project.owner_name %> if you need more time.
+      <% } %>
+    </p>
+    <p class="tiny muted">Project ID <span class="mono"><%= projectBundle.link.token %></span> · <%= projectBundle.client.name %></p>
+    <a class="btn ghost" href="/verify">Verify a certificate</a>
+  </div>
+</section>
+<%- include('../partials/foot') %>

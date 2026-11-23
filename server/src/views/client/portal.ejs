@@ -1,0 +1,146 @@
+<%- include('../partials/head', { title, side: 'client' }) %>
+<%
+  const token = projectBundle.link.token;
+  const pct = bundle.stats.total ? Math.round((bundle.stats.done / bundle.stats.total) * 100) : 0;
+  const milestoneDone = m => m.items.filter(i => i.status === 'pass' || i.status === 'na').length;
+%>
+<section class="wrap">
+  <div class="portal-head">
+    <div>
+      <div class="eyebrow"><%= projectBundle.client.name %> · <%= projectBundle.project.owner_name %></div>
+      <h1><%= projectBundle.product.name %> <span class="muted"><%= projectBundle.project.version %></span></h1>
+      <p class="muted">Work through each milestone in order. A milestone unlocks when every item in the one before it has a result.</p>
+    </div>
+    <div class="portal-progress">
+      <div class="row between"><span class="tiny muted">Overall progress</span><strong><%= bundle.stats.done %> / <%= bundle.stats.total %></strong></div>
+      <div class="bar big"><i style="width: <%= pct %>%"></i></div>
+      <div class="tiny muted"><%= pct %>% complete<% if (bundle.stats.fail) { %> · <span class="failtext"><%= bundle.stats.fail %> to fix</span><% } %></div>
+    </div>
+  </div>
+
+  <div class="portal-grid">
+    <aside class="rail card">
+      <div class="eyebrow">Milestones</div>
+      <% for (let i = 0; i < bundle.milestones.length; i += 1) { const m = bundle.milestones[i]; const st = bundle.states[i]; const done = milestoneDone(m); %>
+        <a class="railitem <%= i === index ? 'active' : '' %> <%= st %>"
+           href="<%= st === 'locked' ? '#' : `/p/${token}/portal?ms=${m.id}` %>"
+           <%= st === 'locked' ? 'aria-disabled="true" tabindex="-1"' : '' %>>
+          <span class="railnum"><%= st === 'complete' ? '✓' : i + 1 %></span>
+          <span class="railtext">
+            <strong><%= m.name %></strong>
+            <small><%= done %> of <%= m.items.length %> done<%= st === 'locked' ? ' · locked' : '' %></small>
+          </span>
+        </a>
+      <% } %>
+    </aside>
+
+    <div class="portal-main">
+      <% if (!milestone) { %>
+        <div class="card empty"><h2>No checklist items</h2><p class="muted">This project has no items. Ask <%= projectBundle.project.owner_name %> to check the upload.</p></div>
+      <% } else { %>
+        <div class="card milestone-card">
+          <div class="card-head">
+            <div>
+              <div class="eyebrow">Milestone <%= index + 1 %> of <%= bundle.milestones.length %></div>
+              <h2><%= milestone.name %></h2>
+              <p class="tiny muted"><%= milestoneDone(milestone) %> of <%= milestone.items.length %> items done</p>
+            </div>
+            <span class="badge <%= state === 'complete' ? 'b-pass' : (state === 'locked' ? '' : 'b-brand') %>"><%= state === 'complete' ? 'Complete' : (state === 'locked' ? 'Locked' : 'In progress') %></span>
+          </div>
+
+          <% if (state === 'locked') { %>
+            <div class="notice">This milestone is locked. Finish the earlier milestone first.
+              <a href="/p/<%= token %>/portal">Go to the current milestone</a>.
+            </div>
+          <% } %>
+        </div>
+
+        <div class="itemlist">
+          <% for (const item of milestone.items) { const im = item.status ? (itemMeta[item.status] || null) : null; const back = `/p/${token}/portal?ms=${milestone.id}#item-${item.id}`; %>
+            <div class="card itemcard" id="item-<%= item.id %>">
+              <div class="itemcard-head">
+                <div>
+                  <div class="itemrow-top">
+                    <span class="code mono"><%= item.code %></span>
+                    <% if (im) { %><span class="badge <%= im.cls %>"><%= im.label %></span><% } else { %><span class="badge">Not tested</span><% } %>
+                    <% if (item.mandatory) { %><span class="tag">Required</span><% } %>
+                    <% if (item.evidence) { %><span class="tag">Evidence</span><% } %>
+                  </div>
+                  <h3><%= item.title %></h3>
+                </div>
+              </div>
+
+              <% if (item.steps) { %><div class="prewrap itemtext"><%= item.steps %></div><% } %>
+              <% if (item.expected) { %><div class="expected"><span class="eyebrow">Expected result</span><div class="prewrap"><%= item.expected %></div></div><% } %>
+
+              <% if (item.status === 'retest' && item.fix_note) { %>
+                <div class="notice retest"><strong>Your team marked this fixed.</strong> Please retest and mark it again. <%= item.fix_note %></div>
+              <% } %>
+              <% if (item.comment) { %><div class="comment"><span class="muted">Your note:</span> <span class="prewrap"><%= item.comment %></span></div><% } %>
+              <% if (item.tester_name) { %><div class="tiny muted">Last result by <%= item.tester_name %><% if (item.tested_at) { %> · <%= fmt(item.tested_at) %><% } %></div><% } %>
+
+              <% if (item.image_key) { %>
+                <div class="evidence-row">
+                  <button type="button" class="thumb" data-lightbox="/p/<%= token %>/items/<%= item.id %>/screenshot">
+                    <img src="/p/<%= token %>/items/<%= item.id %>/screenshot" alt="Screenshot for <%= item.code %>">
+                  </button>
+                  <span class="tiny muted">Screenshot attached. Open it to check, or replace it below.</span>
+                </div>
+              <% } %>
+
+              <% if (state !== 'locked') { %>
+                <form method="post" action="/p/<%= token %>/items/<%= item.id %>/screenshot" enctype="multipart/form-data" class="shotform">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <label class="filemini">
+                    <input type="file" name="screenshot" accept="image/png,image/jpeg" required>
+                    <span><%= item.image_key ? 'Replace screenshot' : 'Attach screenshot' %></span>
+                  </label>
+                  <button class="btn ghost sm" type="submit">Upload</button>
+                  <% if (item.evidence) { %><span class="tiny muted">Screenshot evidence (optional).</span><% } %>
+                </form>
+
+                <form method="post" action="/p/<%= token %>/items/<%= item.id %>/result" class="resultform" data-auto-save="1" data-item-id="<%= item.id %>">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <div class="choices">
+                    <label class="choice pass"><input type="radio" name="status" value="pass" <%= item.status === 'pass' ? 'checked' : '' %>><span>Pass</span></label>
+                    <label class="choice fail"><input type="radio" name="status" value="fail" <%= item.status === 'fail' ? 'checked' : '' %>><span>Fail</span></label>
+                    <label class="choice na" <%= item.mandatory ? 'title="Required item cannot be marked N/A"' : '' %>><input type="radio" name="status" value="na" <%= item.status === 'na' ? 'checked' : '' %> <%= item.mandatory ? 'disabled' : '' %>><span>N/A</span></label>
+                  </div>
+                  <label class="field tightfield">
+                    <span>What happened? <small>Required when marking Fail</small></span>
+                    <textarea name="comment" rows="2" placeholder="Add the steps you took and what you saw."><%= item.comment || '' %></textarea>
+                  </label>
+                  <div class="row between">
+                    <span class="tiny muted">Results save automatically on selection.</span>
+                    <span class="save-status" data-item-id="<%= item.id %>"></span>
+                  </div>
+                </form>
+              <% } %>
+            </div>
+          <% } %>
+        </div>
+
+        <% if (allDone) { %>
+          <div class="card cta">
+            <div>
+              <div class="eyebrow">Ready to sign</div>
+              <h2>All milestones are complete</h2>
+              <p class="muted">Check the results above, then sign off with a one-time email code and your signature. This locks the checklist and issues the completion certificate.</p>
+            </div>
+            <a class="btn" href="/p/<%= token %>/signoff">Sign off UAT</a>
+          </div>
+        <% } else if (state === 'complete') { %>
+          <div class="card cta">
+            <div>
+              <h2>Milestone complete</h2>
+              <p class="muted">Continue with the next milestone.</p>
+            </div>
+            <% const nextIndex = bundle.states.findIndex((s, i) => i > index && s !== 'locked'); %>
+            <% if (nextIndex >= 0) { %><a class="btn" href="/p/<%= token %>/portal?ms=<%= bundle.milestones[nextIndex].id %>">Next milestone</a><% } %>
+          </div>
+        <% } %>
+      <% } %>
+    </div>
+  </div>
+</section>
+<%- include('../partials/foot') %>

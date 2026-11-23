@@ -1,0 +1,34 @@
+<%- include('../partials/head', { title, side: 'public' }) %>
+<section class="wrap narrow authwrap">
+  <div class="card authcard">
+    <div class="eyebrow">Company side</div>
+    <h1>Sign in to UAT Desk</h1>
+    <p class="muted">Create projects, send client links, follow testing and issue completion certificates.</p>
+
+    <% if (error) { %><div class="notice error"><%= error %></div><% } %>
+
+    <form method="post" action="/company/login" class="stack">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">
+        <span>Work email</span>
+        <input type="email" name="email" value="<%= email %>" autocomplete="username" required autofocus>
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button class="btn block" type="submit">Sign in</button>
+    </form>
+
+    <div class="row between mt" style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line);">
+      <span class="tiny muted">Client tester looking for your checklist?</span>
+      <a href="/client" class="tiny">Open Client Portal &rarr;</a>
+    </div>
+
+    <p class="tiny muted mt">
+      The first company account is created by <code>npm run seed</code> using <code>ADMIN_EMAIL</code> and
+      <code>ADMIN_PASSWORD</code> from <code>server/.env</code>.
+    </p>
+  </div>
+</section>
+<%- include('../partials/foot') %>

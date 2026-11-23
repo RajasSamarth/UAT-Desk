@@ -1,0 +1,82 @@
+<%- include('../partials/head', { title, side: 'public' }) %>
+<section class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Public check</div>
+      <h1>Verify a UAT certificate</h1>
+      <p class="muted">Enter the verification ID printed on the certificate, or open the verification link from the sign-off email.</p>
+    </div>
+  </div>
+
+  <div class="grid-2 verify-grid">
+    <div class="card">
+      <h2>Check a verification ID</h2>
+      <form method="post" action="/verify" class="stack">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label class="field">
+          <span>Verification ID</span>
+          <input class="mono" type="text" name="verificationId" value="<%= id || '' %>" placeholder="VC-XXXX-XXXX" autocomplete="off" required autofocus>
+        </label>
+        <button class="btn" type="submit">Check certificate</button>
+      </form>
+      <p class="tiny muted mt">The check reads the stored sign-off record. It does not expose the client’s checklist answers.</p>
+    </div>
+
+    <div class="card">
+      <h2>What this proves</h2>
+      <ul class="checklist">
+        <li>The client signed off the release on the recorded date.</li>
+        <li>The signer’s email was confirmed with a one-time code.</li>
+        <li>The stored record has a SHA-256 fingerprint.</li>
+        <li>The PDF can be checked against its own fingerprint.</li>
+      </ul>
+    </div>
+  </div>
+
+  <% if (error) { %><div class="notice error mt"><%= error %></div><% } %>
+
+  <% if (result && result.found) { const row = result.row; %>
+    <div class="card verify-result valid mt">
+      <div class="verify-badge">✓</div>
+      <div class="verify-body">
+        <div class="eyebrow">Valid certificate</div>
+        <h2><%= row.product_name %> <span class="muted"><%= row.version %></span></h2>
+        <p class="muted">Signed for <strong><%= row.client_name %></strong> on <%= fmt(row.signed_at) %>.</p>
+
+        <div class="cert-details compact">
+          <div><span>Verification ID</span><strong class="mono"><%= row.verification_id %></strong></div>
+          <div><span>Project ID</span><strong class="mono"><%= row.token %></strong></div>
+          <div><span>Signed by</span><strong><%= row.signer_name %></strong></div>
+          <div><span>Designation</span><strong><%= row.signer_designation %></strong></div>
+          <div><span>Email verified</span><strong><%= fmt(row.otp_verified_at) %></strong></div>
+        </div>
+
+        <div class="hashline"><span>Record SHA-256</span><code><%= row.record_hash %></code></div>
+
+        <div class="pdfcheck">
+          <h3>Check a downloaded PDF</h3>
+          <p class="tiny muted">Upload the certificate PDF. Its SHA-256 must match the fingerprint stored at signing.</p>
+          <form method="post" action="/verify/pdf" enctype="multipart/form-data" class="row gap">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="verificationId" value="<%= row.verification_id %>">
+            <input type="file" name="pdf" accept="application/pdf,.pdf" required>
+            <button class="btn ghost sm" type="submit">Check PDF</button>
+          </form>
+          <% if (fileCheck === true) { %><div class="notice ok mt"><strong>PDF matches.</strong> The file is the one generated at signing.</div><% } %>
+          <% if (fileCheck === false) { %><div class="notice error mt"><strong>PDF does not match.</strong> The file has changed since signing, or it belongs to a different certificate.</div><% } %>
+          <% if (fileCheck === 'none') { %><div class="notice mt">No PDF fingerprint is stored for this record.</div><% } %>
+        </div>
+      </div>
+    </div>
+  <% } else if (result && !result.found) { %>
+    <div class="card verify-result invalid mt">
+      <div class="verify-badge">×</div>
+      <div>
+        <div class="eyebrow">Not found</div>
+        <h2>No certificate matches “<%= result.id %>”</h2>
+        <p class="muted">Check the ID for typing errors. It looks like <span class="mono">VC-XXXX-XXXX</span>. If it still fails, ask the company that issued the certificate.</p>
+      </div>
+    </div>
+  <% } %>
+</section>
+<%- include('../partials/foot') %>

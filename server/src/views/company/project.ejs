@@ -1,0 +1,181 @@
+<%- include('../partials/head', { title, side: 'company' }) %>
+<%
+  const meta = statusMeta[bundle.status] || statusMeta['in-progress'];
+  const pct = bundle.stats.total ? Math.round((bundle.stats.done / bundle.stats.total) * 100) : 0;
+  const link = `${appBaseUrl}/p/${bundle.link.token}`;
+%>
+<section class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow"><a href="/company">Dashboard</a> / <%= bundle.client.name %></div>
+      <h1><%= bundle.product.name %> <span class="muted"><%= bundle.project.version %></span></h1>
+      <p class="muted"><%= bundle.client.name %> · <%= bundle.project.owner_name %><% if (bundle.project.checklist_filename) { %> · checklist: <%= bundle.project.checklist_filename %><% } %></p>
+    </div>
+    <div class="row gap wrap-actions">
+      <span class="badge <%= meta.cls %>"><%= meta.label %></span>
+      <a class="btn ghost" href="/p/<%= bundle.link.token %>" target="_blank" rel="noopener">Open client link</a>
+    </div>
+  </div>
+
+  <% if (newPassword) { %>
+    <div class="card credentials">
+      <div class="split">
+        <div>
+          <div class="eyebrow">Shown once</div>
+          <h2>Client credentials</h2>
+          <p class="muted">Send these to the client. The password is stored as a hash and cannot be shown again — generate a new one if it is lost.</p>
+        </div>
+        <div class="cred-grid">
+          <div><span class="label">Link</span><div class="copyrow"><input id="project-link" class="mono" readonly value="<%= link %>"><button type="button" class="btn ghost sm" data-copy-target="#project-link">Copy</button></div></div>
+          <div><span class="label">Project ID</span><div class="copyrow"><input id="project-token" class="mono" readonly value="<%= bundle.link.token %>"><button type="button" class="btn ghost sm" data-copy-target="#project-token">Copy</button></div></div>
+          <div><span class="label">Password</span><div class="copyrow"><input id="project-password" class="mono" readonly value="<%= newPassword %>"><button type="button" class="btn ghost sm" data-copy-target="#project-password">Copy</button></div></div>
+        </div>
+      </div>
+      <% if (invite) { %>
+        <label class="field mt">
+          <span>Invitation text</span>
+          <textarea id="invite-text" rows="9" readonly><%= invite %></textarea>
+        </label>
+        <button type="button" class="btn ghost sm" data-copy-target="#invite-text">Copy invitation</button>
+      <% } %>
+    </div>
+  <% } %>
+
+  <div class="project-grid">
+    <div class="project-main">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>Progress</h2>
+            <p class="tiny muted"><%= bundle.stats.done %> of <%= bundle.stats.total %> items passed or marked N/A<% if (bundle.stats.fail) { %> · <span class="failtext"><%= bundle.stats.fail %> failed</span><% } %><% if (bundle.stats.retest) { %> · <%= bundle.stats.retest %> waiting for retest<% } %></p>
+          </div>
+          <span class="strong"><%= pct %>%</span>
+        </div>
+        <div class="bar big"><i style="width: <%= pct %>%"></i></div>
+      </div>
+
+      <% if (bundle.signoff) { %>
+        <div class="card signed-card">
+          <div class="card-head">
+            <div>
+              <div class="eyebrow">Signed off</div>
+              <h2><%= bundle.signoff.verification_id %></h2>
+              <p class="muted"><%= bundle.signoff.signer_name %>, <%= bundle.signoff.signer_designation %> · <%= fmt(bundle.signoff.signed_at) %></p>
+            </div>
+            <div class="row gap">
+              <a class="btn ghost sm" href="/verify?id=<%= encodeURIComponent(bundle.signoff.verification_id) %>">Verify</a>
+              <a class="btn sm" href="/company/projects/<%= bundle.project.id %>/certificate.pdf">Download PDF</a>
+            </div>
+          </div>
+          <div class="hashline"><span>Record SHA-256</span><code><%= bundle.signoff.record_hash %></code></div>
+          <% if (bundle.signoff.pdf_hash) { %><div class="hashline"><span>PDF SHA-256</span><code><%= bundle.signoff.pdf_hash %></code></div><% } %>
+          <% if (bundle.signoff.signature_key) { %>
+            <div class="sig-preview"><img src="/company/projects/<%= bundle.project.id %>/signature" alt="Signature"></div>
+          <% } %>
+        </div>
+      <% } %>
+
+      <% for (let mi = 0; mi < bundle.milestones.length; mi += 1) { const m = bundle.milestones[mi]; const st = bundle.states[mi]; %>
+        <div class="card milestone-card">
+          <div class="card-head">
+            <div>
+              <div class="eyebrow">Milestone <%= mi + 1 %></div>
+              <h2><%= m.name %></h2>
+            </div>
+            <span class="badge <%= st === 'complete' ? 'b-pass' : (st === 'locked' ? '' : 'b-brand') %>"><%= st === 'complete' ? 'Complete' : (st === 'locked' ? 'Locked' : 'In progress') %></span>
+          </div>
+
+          <div class="itemlist">
+            <% for (const item of m.items) { const im = item.status ? (itemMeta[item.status] || itemMeta['in-progress']) : null; %>
+              <div class="itemrow" id="item-<%= item.id %>">
+                <div class="itemrow-main">
+                  <div class="itemrow-top">
+                    <span class="code mono"><%= item.code %></span>
+                    <% if (im) { %><span class="badge <%= im.cls %>"><%= im.label %></span><% } else { %><span class="badge">Not tested</span><% } %>
+                    <% if (item.mandatory) { %><span class="tag">Required</span><% } %>
+                    <% if (item.evidence) { %><span class="tag">Evidence</span><% } %>
+                  </div>
+                  <div class="strong"><%= item.title %></div>
+                  <% if (item.steps) { %><div class="tiny muted prewrap"><%= item.steps %></div><% } %>
+                  <% if (item.expected) { %><div class="tiny"><span class="muted">Expected:</span> <span class="prewrap"><%= item.expected %></span></div><% } %>
+                  <% if (item.comment) { %><div class="comment"><span class="muted">Client note:</span> <span class="prewrap"><%= item.comment %></span></div><% } %>
+                  <% if (item.fix_note) { %><div class="comment retest"><span class="muted">Fix note:</span> <span class="prewrap"><%= item.fix_note %></span></div><% } %>
+                  <% if (item.tester_name) { %><div class="tiny muted"><%= item.tester_name %><% if (item.tested_at) { %> · <%= fmt(item.tested_at) %><% } %></div><% } %>
+                  <% if (item.image_key) { %>
+                    <button type="button" class="thumb" data-lightbox="/company/projects/<%= bundle.project.id %>/items/<%= item.id %>/screenshot">
+                      <img src="/company/projects/<%= bundle.project.id %>/items/<%= item.id %>/screenshot" alt="Screenshot for <%= item.code %>">
+                    </button>
+                  <% } %>
+                </div>
+                <div class="itemrow-side">
+                  <% if (item.status === 'fail' && !bundle.signoff) { %>
+                    <form method="post" action="/company/projects/<%= bundle.project.id %>/items/<%= item.id %>/fix" class="fixform" data-confirm="Send <%= item.code %> back to the client for retest?">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <label class="field tightfield">
+                        <span>What was fixed?</span>
+                        <textarea name="fixNote" rows="3" placeholder="Build 1.0.4 corrects the total calculation." required></textarea>
+                      </label>
+                      <button class="btn sm" type="submit">Mark fixed &amp; send for retest</button>
+                    </form>
+                  <% } else if (item.status === 'retest') { %>
+                    <span class="tiny muted">Waiting for the client to retest.</span>
+                  <% } else if (item.status === 'pass' || item.status === 'na') { %>
+                    <span class="tiny muted">Accepted.</span>
+                  <% } else { %>
+                    <span class="tiny muted">Not tested yet.</span>
+                  <% } %>
+                </div>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
+    </div>
+
+    <aside class="project-side">
+      <div class="card">
+        <h2>Access</h2>
+        <div class="kv"><span>Project ID</span><code><%= bundle.link.token %></code></div>
+        <div class="kv"><span>Available until</span><strong><%= fmtDate(bundle.link.expires_at) %></strong></div>
+        <div class="kv"><span>Status</span><span class="badge <%= meta.cls %>"><%= meta.label %></span></div>
+        <div class="copyrow mt">
+          <input id="side-link" class="mono" readonly value="<%= link %>">
+          <button type="button" class="btn ghost sm" data-copy-target="#side-link">Copy</button>
+        </div>
+
+        <hr>
+        <form method="post" action="/company/projects/<%= bundle.project.id %>/password" data-confirm="Generate a new client password? The current password stops working immediately.">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn ghost sm block" type="submit">Generate a new password</button>
+        </form>
+        <form method="post" action="/company/projects/<%= bundle.project.id %>/expiry" class="mt">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="field tightfield">
+            <span>Change end date</span>
+            <input type="date" name="expiry" value="<%= bundle.link.expires_at %>" required>
+          </label>
+          <button class="btn ghost sm block" type="submit">Update end date</button>
+        </form>
+        <form method="post" action="/company/projects/<%= bundle.project.id %>/revoke" class="mt" data-confirm="<%= bundle.link.revoked_at ? 'Turn client access back on?' : 'Turn off client access now?' %>">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn <%= bundle.link.revoked_at ? '' : 'danger' %> sm block" type="submit"><%= bundle.link.revoked_at ? 'Restore client access' : 'Turn off client access' %></button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Activity</h2>
+        <% if (!events.length) { %><p class="tiny muted">No activity yet.</p><% } %>
+        <ul class="activity">
+          <% for (const e of events) { %>
+            <li>
+              <div class="activity-top"><strong><%= e.action.replaceAll('.', ' · ') %></strong><span class="tiny muted"><%= fmt(e.at) %></span></div>
+              <div class="tiny"><%= e.actor %><% if (e.detail) { %> — <%= e.detail %><% } %></div>
+              <% if (e.ip) { %><div class="tiny muted mono"><%= e.ip %></div><% } %>
+            </li>
+          <% } %>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</section>
+<%- include('../partials/foot') %>

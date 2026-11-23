@@ -1,0 +1,13 @@
+<%- include('partials/head', { title, side: typeof side !== 'undefined' ? side : 'public' }) %>
+<section class="wrap narrow authwrap">
+  <div class="card authcard center">
+    <div class="auth-mark"><%= typeof status !== 'undefined' ? status : 500 %></div>
+    <h1><%= title %></h1>
+    <p class="muted"><%= typeof message !== 'undefined' ? message : 'An unexpected error occurred.' %></p>
+    <div class="row center gap">
+      <a class="btn" href="/">Go to the start page</a>
+      <a class="btn ghost" href="/verify">Verify a certificate</a>
+    </div>
+  </div>
+</section>
+<%- include('partials/foot') %>

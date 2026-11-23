@@ -1,0 +1,25 @@
+<%- include('../partials/head', { title, side: 'client' }) %>
+<section class="wrap narrow authwrap">
+  <div class="card authcard">
+    <div class="eyebrow">Before you start</div>
+    <h1>Who is testing?</h1>
+    <p class="muted">Your name and email are recorded against each result and on the completion certificate. Use a work email you can open now — sign-off sends a one-time code to it.</p>
+
+    <% if (error) { %><div class="notice error"><%= error %></div><% } %>
+
+    <form method="post" action="/p/<%= projectBundle.link.token %>/tester" class="stack">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">
+        <span>Full name</span>
+        <input type="text" name="name" value="<%= tester ? tester.name : '' %>" autocomplete="name" required autofocus>
+      </label>
+      <label class="field">
+        <span>Work email</span>
+        <input type="email" name="email" value="<%= tester ? tester.email : '' %>" autocomplete="email" required>
+      </label>
+      <button class="btn block" type="submit">Start testing</button>
+    </form>
+    <p class="tiny muted mt">Testing <strong><%= projectBundle.product.name %> <%= projectBundle.project.version %></strong> for <%= projectBundle.client.name %>.</p>
+  </div>
+</section>
+<%- include('../partials/foot') %>
