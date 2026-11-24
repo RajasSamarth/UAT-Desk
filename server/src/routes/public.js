@@ -9,7 +9,11 @@ const service = require('../projectService');
 const { audit } = require('../audit');
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
+const maxUploadMb = Number(process.env.MAX_UPLOAD_MB || 4);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: maxUploadMb * 1024 * 1024, files: 1 }
+});
 
 async function lookup(verificationId) {
   const clean = String(verificationId || '').trim().toUpperCase();

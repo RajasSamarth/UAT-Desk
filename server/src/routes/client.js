@@ -18,7 +18,11 @@ const { sendOtpEmail, sendCertificateEmail } = require('../email');
 const config = require('../config');
 
 const router = express.Router({ mergeParams: true });
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
+const maxUploadMb = Number(process.env.MAX_UPLOAD_MB || 4);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: maxUploadMb * 1024 * 1024, files: 1 }
+});
 
 router.use(loadClientProject);
 
@@ -28,7 +32,7 @@ const portalPath = req => `/p/${tokenOf(req)}/portal`;
 const signoffPath = req => `/p/${tokenOf(req)}/signoff`;
 
 function allComplete(bundle) {
-  return bundle.stats.total > 0 && bundle.stats.tested === bundle.stats.total;
+  return bundle.stats.total > 0 && bundle.stats.done === bundle.stats.total;
 }
 
 router.get('/', (req, res) => {

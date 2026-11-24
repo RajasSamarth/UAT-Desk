@@ -13,7 +13,7 @@ function itemDone(item) {
 }
 
 function milestoneComplete(milestone) {
-  return milestone.items.length > 0 && milestone.items.every(itemTested);
+  return milestone.items.length > 0 && milestone.items.every(itemDone);
 }
 
 function computeStats(bundle) {
@@ -51,7 +51,7 @@ function projectStatus(bundle) {
   if (bundle.link.revoked_at) return 'revoked';
   if (isExpired(bundle)) return 'expired';
   const s = computeStats(bundle);
-  if (s.total && s.tested === s.total) return 'ready';
+  if (s.total && s.done === s.total) return 'ready';
   if (s.tested === 0) return 'not-started';
   return 'in-progress';
 }

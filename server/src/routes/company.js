@@ -15,7 +15,11 @@ const { parseChecklist, rowsToMilestones, COLS, TEMPLATE_ROWS } = require('../ch
 const { isoDate, inviteText, safeFilename, csvEscape } = require('../helpers');
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
+const maxUploadMb = Number(process.env.MAX_UPLOAD_MB || 4);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: maxUploadMb * 1024 * 1024, files: 1 }
+});
 
 function renderLogin(res, { error = null, email = '', status = 200 } = {}) {
   return res.status(status).render('company/login', {

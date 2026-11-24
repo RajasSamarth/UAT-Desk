@@ -49,7 +49,7 @@ async function init() {
         await client.send(new lib.CreateBucketCommand({ Bucket: config.s3.bucket }));
         console.log(`Created S3 bucket ${config.s3.bucket}`);
       } catch (err) {
-        console.warn(`Could not create S3 bucket ${config.s3.bucket}:`, err.message);
+        console.warn(`Could not create S3 bucket ${config.s3.bucket} (${err.message}). Ensure bucket is created in Supabase Storage Dashboard.`);
       }
     }
     return;
