@@ -1,9 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "api/index.js": {
-      "includeFiles": "src/**"
-    }
+    "api/index.js": {}
   },
   "rewrites": [
     {
