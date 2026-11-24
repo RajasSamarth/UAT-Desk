@@ -26,7 +26,8 @@ console.log(
     s3Endpoint: safeHost(config.s3.endpoint),
     s3Bucket: config.s3.bucket,
     hasSessionSecret: Boolean(process.env.SESSION_SECRET),
-    hasAdminPassword: Boolean(process.env.ADMIN_PASSWORD)
+    hasAdminPassword: Boolean(process.env.ADMIN_PASSWORD),
+    missingEnv: config.missingEnv
   })
 );
 

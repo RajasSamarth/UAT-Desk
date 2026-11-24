@@ -17,7 +17,7 @@ const num = (v, fallback) => {
 };
 
 const poolConfig = {
-  connectionString: config.databaseUrl,
+  connectionString: config.databaseUrl || undefined,
   max: num(process.env.PG_POOL_MAX, 5),
   connectionTimeoutMillis: num(process.env.PG_CONNECT_TIMEOUT_MS, 10000),
   idleTimeoutMillis: num(process.env.PG_IDLE_TIMEOUT_MS, 30000),
@@ -25,6 +25,10 @@ const poolConfig = {
   query_timeout: num(process.env.PG_QUERY_TIMEOUT_MS, 25000),
   keepAlive: true
 };
+
+if (!config.databaseUrl) {
+  console.error('[db] DATABASE_URL is not set for this deployment - database calls cannot succeed.');
+}
 
 if (isRemoteDb) {
   poolConfig.ssl = { rejectUnauthorized: false };

@@ -5,6 +5,9 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const env = process.env;
 const isProd = (env.NODE_ENV || 'development') === 'production';
+const isServerless = Boolean(env.VERCEL || env.VERCEL_ENV);
+// Enforce required configuration on Vercel even if NODE_ENV is not set there.
+const enforceEnv = isProd || isServerless;
 const bool = v => String(v).toLowerCase() === 'true';
 // Vercel (and copy/paste in general) often leaves stray whitespace or newlines
 // around values. Trim everything so a trailing "\n" cannot break a hostname.
@@ -14,7 +17,34 @@ const str = (v, fallback = '') => {
   return trimmed === '' ? fallback : trimmed;
 };
 
-const databaseUrl = str(env.DATABASE_URL, 'postgres://uat:uat@localhost:5432/uatdesk');
+const databaseUrl = str(env.DATABASE_URL, enforceEnv ? '' : 'postgres://uat:uat@localhost:5432/uatdesk');
+
+// A deployment with no environment variables used to fall back to localhost and
+// then fail with "ECONNREFUSED 127.0.0.1:5432", which hides the real problem.
+// Detect the missing configuration up front and report it explicitly.
+const REQUIRED_ENV = [
+  'DATABASE_URL',
+  'SESSION_SECRET',
+  'ADMIN_PASSWORD',
+  'STORAGE_DRIVER',
+  'S3_ENDPOINT',
+  'S3_REGION',
+  'S3_BUCKET',
+  'S3_ACCESS_KEY_ID',
+  'S3_SECRET_ACCESS_KEY'
+];
+const RECOMMENDED_ENV = ['APP_BASE_URL', 'ADMIN_EMAIL', 'TRUST_PROXY', 'COOKIE_SECURE'];
+
+const missingEnv = enforceEnv ? REQUIRED_ENV.filter(key => !str(env[key])) : [];
+const unsetRecommended = RECOMMENDED_ENV.filter(key => !str(env[key]));
+
+if (missingEnv.length) {
+  console.error(
+    `[config] MISSING required environment variables for this deployment: ${missingEnv.join(', ')}. ` +
+      'They are not attached to the running deployment - check that they exist in THIS Vercel project, ' +
+      'scoped to the Production environment, then redeploy.'
+  );
+}
 
 function hostOf(url) {
   try {
@@ -40,6 +70,9 @@ if (/^db\.[a-z0-9-]+\.supabase\.co$/i.test(databaseHost)) {
 module.exports = {
   env: env.NODE_ENV || 'development',
   isProd,
+  isServerless,
+  missingEnv,
+  unsetRecommended,
   port: Number(env.PORT || 3000),
   appBaseUrl: str(env.APP_BASE_URL, `http://localhost:${env.PORT || 3000}`).replace(/\/+$/, ''),
   databaseUrl,

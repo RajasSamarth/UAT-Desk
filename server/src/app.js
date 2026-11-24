@@ -23,6 +23,42 @@ function deploymentInfo() {
   };
 }
 
+// Rendered when the deployment has no environment variables. Served as plain
+// HTML so it works even though the session store (and therefore every view that
+// needs a logged-in user) depends on the database.
+function renderConfigPage(missing) {
+  const items = missing.map(name => `<li><code>${name}</code></li>`).join('');
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configuration required</title>
+<style>
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b1020;color:#e8ecf8;
+       font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:24px}
+  main{max-width:640px;background:#141b33;border:1px solid #263055;border-radius:16px;padding:32px}
+  h1{margin:0 0 12px;font-size:24px}
+  code{background:#0b1020;border:1px solid #263055;border-radius:6px;padding:2px 6px;font-size:14px}
+  ul{padding-left:20px}
+  p{color:#b9c3e0}
+  strong{color:#e8ecf8}
+</style>
+</head>
+<body>
+<main>
+  <h1>Configuration required</h1>
+  <p>This deployment is missing required environment variables, so the portal cannot connect to its database or storage.</p>
+  <ul>${items}</ul>
+  <p>In Vercel: open <strong>this project</strong> &rarr; <strong>Settings</strong> &rarr;
+     <strong>Environment Variables</strong>, add each name above with the
+     <strong>Production</strong> environment ticked, then redeploy.</p>
+  <p>Details are available at <code>/healthz</code>.</p>
+</main>
+</body>
+</html>`;
+}
+
 
 const STATUS_META = {
   signed: { label: 'Signed off', cls: 'b-pass' },
@@ -52,26 +88,38 @@ function createApp() {
   // until the platform timeout (Vercel: 300s / 504) instead of answering fast.
   app.get('/healthz', async (req, res) => {
     const started = Date.now();
+    const base = {
+      dbHost: config.databaseHost || '(unset)',
+      missingEnv: config.missingEnv,
+      unsetRecommended: config.unsetRecommended,
+      deployment: deploymentInfo()
+    };
+    if (config.missingEnv.length) {
+      return res.status(503).json({
+        ok: false,
+        status: 'misconfigured',
+        message: 'Required environment variables are not attached to this deployment.',
+        ...base
+      });
+    }
     try {
       await db.query('SELECT 1');
       res.json({
         ok: true,
         status: 'healthy',
         database: 'reachable',
-        dbHost: config.databaseHost,
         latencyMs: Date.now() - started,
         uptime: Math.round(process.uptime()),
-        deployment: deploymentInfo()
+        ...base
       });
     } catch (err) {
       res.status(503).json({
         ok: false,
         status: 'unhealthy',
         database: 'unreachable',
-        dbHost: config.databaseHost,
         error: err.code || err.message,
         latencyMs: Date.now() - started,
-        deployment: deploymentInfo()
+        ...base
       });
     }
   });
@@ -98,6 +146,13 @@ function createApp() {
   app.use('/static', express.static(path.join(__dirname, 'public'), {
     maxAge: config.isProd ? '7d' : 0
   }));
+
+  if (config.missingEnv.length) {
+    app.use((req, res, next) => {
+      if (req.path === '/healthz' || req.path === '/favicon.ico') return next();
+      res.status(503).type('html').send(renderConfigPage(config.missingEnv));
+    });
+  }
 
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
