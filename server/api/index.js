@@ -39,5 +39,9 @@ console.log(
 const app = createApp();
 const handler = serverless(app);
 
+// Fire-and-forget connectivity check. A hung request still leaves these lines in
+// the platform logs, so we can see which hop (DNS, TCP, PostgreSQL) stalls.
+require('../src/diagnostics').probe();
+
 module.exports = handler;
 module.exports.handler = handler;
