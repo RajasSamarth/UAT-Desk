@@ -191,13 +191,4 @@ router.post('/verify/pdf', verifyLimiter, upload.single('pdf'), requireCsrf, asy
   }
 });
 
-router.get('/healthz', async (req, res) => {
-  try {
-    await db.query('SELECT 1');
-    res.json({ ok: true, status: 'healthy', uptime: Math.round(process.uptime()), timestamp: new Date().toISOString() });
-  } catch (err) {
-    res.status(503).json({ ok: false, status: 'unhealthy', error: 'Database unavailable' });
-  }
-});
-
 module.exports = router;
