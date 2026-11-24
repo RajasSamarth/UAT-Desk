@@ -1,7 +1,7 @@
+const dns = require('node:dns');
+
 const config = require('../src/config');
 const { createApp } = require('../src/app');
-const serverless = require('serverless-http');
-const dns = require('node:dns');
 
 // Serverless hosts are IPv4-only; make sure a hostname that also has AAAA
 // records can never stall the connection attempt on an unreachable IPv6 route.
@@ -37,11 +37,14 @@ console.log(
 );
 
 const app = createApp();
-const handler = serverless(app);
 
 // Fire-and-forget connectivity check. A hung request still leaves these lines in
 // the platform logs, so we can see which hop (DNS, TCP, PostgreSQL) stalls.
 require('../src/diagnostics').probe();
 
-module.exports = handler;
-module.exports.handler = handler;
+// Vercel's Node.js runtime invokes api/* with a real IncomingMessage /
+// ServerResponse pair, so the Express app is the handler. Do NOT wrap this in
+// serverless-http: that adapter answers an AWS Lambda proxy event and returns
+// {statusCode, body} instead of ending the real response, which makes Vercel
+// wait for a response that never arrives (300s timeout, 504, empty body).
+module.exports = app;
