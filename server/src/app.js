@@ -80,6 +80,22 @@ const ITEM_META = {
 function createApp() {
   const app = express();
 
+  // First middleware: proves a request arrived and whether a response was ever
+  // written. If "--> " appears without a matching "<--", the hang is downstream.
+  app.use((req, res, next) => {
+    const startedAt = Date.now();
+    console.log(`[req] --> ${req.method} ${req.originalUrl}`);
+    res.on('finish', () => {
+      console.log(`[req] <-- ${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - startedAt}ms`);
+    });
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        console.log(`[req] !!  ${req.method} ${req.originalUrl} closed before response after ${Date.now() - startedAt}ms`);
+      }
+    });
+    next();
+  });
+
   app.set('trust proxy', config.trustProxy ? 1 : false);
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
