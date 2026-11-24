@@ -1,4 +1,6 @@
 const path = require('node:path');
+const net = require('node:net');
+const dns = require('node:dns').promises;
 const express = require('express');
 const session = require('express-session');
 const PgSession = require('connect-pg-simple')(session);
@@ -21,6 +23,65 @@ function deploymentInfo() {
     commit: process.env.VERCEL_GIT_COMMIT_SHA ? process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 7) : null,
     region: process.env.VERCEL_REGION || null
   };
+}
+
+// A hard ceiling around any promise. pg's own connectionTimeoutMillis calls
+// `con.stream.destroy()` and throws when the socket was never created (stalled
+// DNS), which leaves the request hanging until the platform kills it. This makes
+// sure a response always comes back.
+function withTimeout(promise, ms, label) {
+  let timer;
+  const guard = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(Object.assign(new Error(`${label} timed out after ${ms}ms`), { code: 'APP_TIMEOUT' }));
+    }, ms);
+  });
+  return Promise.race([promise, guard]).finally(() => clearTimeout(timer));
+}
+
+function parseDbTarget(url) {
+  try {
+    const u = new URL(url);
+    return { host: u.hostname, port: Number(u.port || 5432) };
+  } catch {
+    return { host: null, port: 5432 };
+  }
+}
+
+function probeTcp(host, port, timeoutMs) {
+  return new Promise(resolve => {
+    const started = Date.now();
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = result => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve({ ...result, ms: Date.now() - started });
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => finish({ ok: true }));
+    socket.once('timeout', () => finish({ ok: false, error: 'TCP_TIMEOUT' }));
+    socket.once('error', err => finish({ ok: false, error: err.code || err.message }));
+    socket.connect(port, host);
+  });
+}
+
+// Diagnoses the exact hop that fails: DNS, then TCP. Used by /healthz?net=1.
+async function networkProbe() {
+  const { host, port } = parseDbTarget(config.databaseUrl);
+  if (!host) return { host, port, dns: { ok: false, error: 'no host in DATABASE_URL' }, tcp: { ok: false } };
+  const dnsStarted = Date.now();
+  let dnsResult;
+  try {
+    const addresses = await withTimeout(dns.lookup(host, { all: true }), 5000, 'dns lookup');
+    dnsResult = { ok: true, addresses, ms: Date.now() - dnsStarted };
+  } catch (err) {
+    dnsResult = { ok: false, error: err.code || err.message, ms: Date.now() - dnsStarted };
+  }
+  if (!dnsResult.ok) return { host, port, dns: dnsResult, tcp: { ok: false, error: 'skipped' } };
+  const tcp = await probeTcp(host, port, 8000);
+  return { host, port, dns: dnsResult, tcp };
 }
 
 // Rendered when the deployment has no environment variables. Served as plain
@@ -87,6 +148,7 @@ function createApp() {
   // to PostgreSQL, so a bad DATABASE_URL would otherwise make every probe hang
   // until the platform timeout (Vercel: 300s / 504) instead of answering fast.
   app.get('/healthz', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
     const started = Date.now();
     const base = {
       dbHost: config.databaseHost || '(unset)',
@@ -102,8 +164,18 @@ function createApp() {
         ...base
       });
     }
+    if (req.query.net !== undefined) {
+      const network = await networkProbe();
+      return res.status(network.tcp.ok ? 200 : 503).json({
+        ok: network.tcp.ok,
+        status: network.tcp.ok ? 'tcp-reachable' : 'tcp-unreachable',
+        network,
+        latencyMs: Date.now() - started,
+        ...base
+      });
+    }
     try {
-      await db.query('SELECT 1');
+      await withTimeout(db.query('SELECT 1'), 8000, 'database query');
       res.json({
         ok: true,
         status: 'healthy',

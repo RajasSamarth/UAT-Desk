@@ -1,6 +1,11 @@
 const config = require('../src/config');
 const { createApp } = require('../src/app');
 const serverless = require('serverless-http');
+const dns = require('node:dns');
+
+// Serverless hosts are IPv4-only; make sure a hostname that also has AAAA
+// records can never stall the connection attempt on an unreachable IPv6 route.
+dns.setDefaultResultOrder('ipv4first');
 
 // One line per cold start: tells us exactly which values the running function
 // actually received, without leaking secrets. If this line shows the wrong DB
