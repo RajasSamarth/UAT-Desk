@@ -2742,6 +2742,7 @@ function NewProjectScreen({
   const [expiresAt, setExpiresAt] = useState('');
   const [checklistFile, setChecklistFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ChecklistPreview | null>(null);
+  const [showAllMilestones, setShowAllMilestones] = useState(false);
   const [checklistErrors, setChecklistErrors] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -2783,6 +2784,7 @@ function NewProjectScreen({
   const handleFile = async (file: File | null) => {
     setChecklistFile(file);
     setPreview(null);
+    setShowAllMilestones(false);
     setChecklistErrors([]);
     if (!file) return;
 
@@ -2938,17 +2940,54 @@ function NewProjectScreen({
         />
       )}
 
-      {preview && checklistErrors.length === 0 && (
-        <NoticeBanner
-          tone="ok"
-          title={`Checklist read successfully from ${preview.fileName}`}
-        >
-          {preview.total} items across {preview.milestones.length} milestones:{' '}
-          {preview.milestones
-            .map((m) => `${m.name} — ${m.count} items (${m.required} required)`)
-            .join(', ')}.
-        </NoticeBanner>
-      )}
+      {preview && checklistErrors.length === 0 && (() => {
+        const totalRequired = preview.milestones.reduce((sum, m) => sum + m.required, 0);
+        const isLarge = preview.milestones.length > 5;
+        const expanded = !isLarge || showAllMilestones;
+        return (
+          <NoticeBanner
+            tone="ok"
+            title={`Checklist read successfully from ${preview.fileName}`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {preview.total} {preview.total === 1 ? 'item' : 'items'} across{' '}
+                {preview.milestones.length}{' '}
+                {preview.milestones.length === 1 ? 'milestone' : 'milestones'} ({totalRequired}{' '}
+                required).
+              </span>
+              {isLarge && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllMilestones((prev) => !prev)}
+                  className="text-xs font-medium text-[var(--ok)] underline underline-offset-2 hover:opacity-80"
+                >
+                  {showAllMilestones
+                    ? 'Hide milestone breakdown'
+                    : `View all ${preview.milestones.length} milestones`}
+                </button>
+              )}
+            </div>
+            {expanded && (
+              <div className="mt-2.5 max-h-56 overflow-y-auto gs-scroll grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 pr-1">
+                {preview.milestones.map((m) => (
+                  <div
+                    key={m.name}
+                    className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 flex items-center justify-between gap-2 text-xs text-[var(--ink)]"
+                  >
+                    <span className="truncate font-medium" title={m.name}>
+                      {m.name}
+                    </span>
+                    <span className="shrink-0 font-mono text-[11px] text-[var(--muted)]">
+                      {m.count} {m.count === 1 ? 'item' : 'items'} · {m.required} req
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </NoticeBanner>
+        );
+      })()}
 
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
