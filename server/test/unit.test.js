@@ -239,10 +239,35 @@ describe('Project service business logic', () => {
     assert.equal(stats.tested, 3);
   });
 
-  test('milestoneState locks milestones if earlier ones are incomplete', () => {
+  test('milestoneState locks milestones if earlier ones are untested, not when failed', () => {
     const bundle = { milestones: dummyMilestones };
     assert.equal(milestoneState(bundle, 0), 'complete');
     assert.equal(milestoneState(bundle, 1), 'open');
+
+    const withFailure = {
+      milestones: [
+        {
+          id: 'm1',
+          name: 'Milestone 1',
+          items: [
+            { id: 'i1', code: 'T1', status: 'pass', mandatory: true },
+            { id: 'i2', code: 'T2', status: 'fail', mandatory: true }
+          ]
+        },
+        {
+          id: 'm2',
+          name: 'Milestone 2',
+          items: [{ id: 'i3', code: 'T3', status: null, mandatory: true }]
+        },
+        {
+          id: 'm3',
+          name: 'Milestone 3',
+          items: [{ id: 'i4', code: 'T4', status: null, mandatory: true }]
+        }
+      ]
+    };
+    assert.equal(milestoneState(withFailure, 1), 'open');
+    assert.equal(milestoneState(withFailure, 2), 'locked');
   });
 
   test('isExpired checks expiration date', () => {

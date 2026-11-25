@@ -1,7 +1,18 @@
 const rateLimit = require('express-rate-limit');
 
 const errorHandler = (req, res) => {
-  res.status(429).render('error', {
+  const isApi =
+    req.originalUrl.startsWith('/api/') ||
+    req.xhr ||
+    req.headers['x-requested-with'] === 'XMLHttpRequest' ||
+    Boolean(req.headers.accept && req.headers.accept.includes('application/json'));
+  if (isApi) {
+    return res.status(429).json({
+      ok: false,
+      error: 'Too many attempts from this address. Wait a few minutes and try again.'
+    });
+  }
+  return res.status(429).render('error', {
     title: 'Too many attempts',
     side: 'public',
     status: 429,

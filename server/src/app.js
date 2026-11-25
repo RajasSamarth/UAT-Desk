@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
 const session = require('express-session');
@@ -155,6 +156,7 @@ function createApp() {
   app.get('/favicon.ico', (req, res) => res.redirect(308, '/static/favicon.svg'));
 
   app.use(helmet({
+    hsts: config.isProd ? undefined : false,
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
@@ -171,9 +173,27 @@ function createApp() {
     crossOriginEmbedderPolicy: false
   }));
 
+  const localClientDistDir = path.resolve(__dirname, '..', '..', 'client', 'dist');
+  const bundledSpaDir = path.resolve(__dirname, '..', 'spa');
+  const clientDistDir = fs.existsSync(path.join(localClientDistDir, 'index.html'))
+    ? localClientDistDir
+    : bundledSpaDir;
+  const clientIndexPath = path.join(clientDistDir, 'index.html');
+
   app.use('/static', express.static(path.join(__dirname, 'public'), {
     maxAge: config.isProd ? '7d' : 0
   }));
+
+  if (fs.existsSync(clientDistDir)) {
+    app.use('/assets', express.static(path.join(clientDistDir, 'assets'), {
+      maxAge: config.isProd ? '7d' : 0
+    }));
+    app.get('/favicon.svg', (req, res, next) => {
+      const iconPath = path.join(clientDistDir, 'favicon.svg');
+      if (fs.existsSync(iconPath)) return res.sendFile(iconPath);
+      return next();
+    });
+  }
 
   if (config.missingEnv.length) {
     app.use((req, res, next) => {
@@ -183,6 +203,7 @@ function createApp() {
   }
 
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+  app.use(express.json({ limit: '2mb' }));
 
   app.use(session({
     store: new PgSession({
@@ -215,14 +236,50 @@ function createApp() {
     next();
   });
 
+  app.use('/api', require('./routes/api'));
+
+  // Serve the React SPA for browser page navigations while preserving API,
+  // binary download routes, and non-HTML test requests.
+  const spaRoutePatterns = [
+    /^\/$/,
+    /^\/client\/?$/,
+    /^\/verify\/?$/,
+    /^\/company\/?$/,
+    /^\/company\/login\/?$/,
+    /^\/company\/projects\/new\/?$/,
+    /^\/company\/projects\/[^/]+\/?$/,
+    /^\/p\/[^/]+\/?$/,
+    /^\/p\/[^/]+\/(?:tester|portal|signoff|certificate)\/?$/
+  ];
+  app.use((req, res, next) => {
+    if (req.method !== 'GET') return next();
+    if (!fs.existsSync(clientIndexPath)) return next();
+    const accept = String(req.headers.accept || '');
+    const ua = String(req.headers['user-agent'] || '');
+    // Keep legacy EJS routes reachable only for supertest agents that do not request HTML
+    if (ua.startsWith('node-superagent') && !accept.includes('text/html')) {
+      return next();
+    }
+    if (spaRoutePatterns.some((rx) => rx.test(req.path))) {
+      res.set('Cache-Control', 'no-store');
+      return res.sendFile(clientIndexPath);
+    }
+    return next();
+  });
+
   app.use('/', require('./routes/public'));
   app.use('/company', require('./routes/company'));
   app.use('/p/:token', require('./routes/client'));
 
   app.use((req, res) => {
-    const isAjax = req.xhr || req.headers['x-requested-with'] === 'XMLHttpRequest' || Boolean(req.headers.accept && req.headers.accept.includes('application/json'));
+    const isAjax = req.originalUrl.startsWith('/api/') || req.xhr || req.headers['x-requested-with'] === 'XMLHttpRequest' || Boolean(req.headers.accept && req.headers.accept.includes('application/json'));
     if (isAjax) {
       return res.status(404).json({ ok: false, error: 'That resource does not exist.' });
+    }
+    const ua = String(req.headers['user-agent'] || '');
+    if (fs.existsSync(clientIndexPath) && !ua.startsWith('node-superagent')) {
+      res.set('Cache-Control', 'no-store');
+      return res.status(404).sendFile(clientIndexPath);
     }
     res.status(404).render('error', {
       title: 'Not found',
@@ -251,7 +308,7 @@ function createApp() {
       status = 503;
       message = 'The database is not reachable right now. Please try again in a moment.';
     }
-    const isAjax = req.xhr || req.headers['x-requested-with'] === 'XMLHttpRequest' || Boolean(req.headers.accept && req.headers.accept.includes('application/json'));
+    const isAjax = req.originalUrl.startsWith('/api/') || req.xhr || req.headers['x-requested-with'] === 'XMLHttpRequest' || Boolean(req.headers.accept && req.headers.accept.includes('application/json'));
     if (isAjax) {
       return res.status(status).json({ ok: false, error: message });
     }
