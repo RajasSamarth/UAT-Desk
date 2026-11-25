@@ -16,6 +16,10 @@ function milestoneComplete(milestone) {
   return milestone.items.length > 0 && milestone.items.every(itemDone);
 }
 
+function milestoneHasResults(milestone) {
+  return milestone.items.length > 0 && milestone.items.every(item => item.status !== null);
+}
+
 function computeStats(bundle) {
   const items = bundle.milestones.flatMap(m => m.items);
   return {
@@ -31,7 +35,7 @@ function computeStats(bundle) {
 function milestoneState(bundle, index) {
   if (milestoneComplete(bundle.milestones[index])) return 'complete';
   for (let i = 0; i < index; i += 1) {
-    if (!milestoneComplete(bundle.milestones[i])) return 'locked';
+    if (!milestoneHasResults(bundle.milestones[i])) return 'locked';
   }
   return 'open';
 }
@@ -266,6 +270,7 @@ async function getDashboard() {
             so.verification_id, so.signed_at,
             COALESCE(s.total, 0) AS total,
             COALESCE(s.done, 0) AS done,
+            COALESCE(s.na, 0) AS na,
             COALESCE(s.fail, 0) AS fail,
             COALESCE(s.retest, 0) AS retest,
             COALESCE(s.tested, 0) AS tested,
@@ -315,7 +320,7 @@ async function getDashboard() {
     if (r.verification_id) status = 'signed';
     else if (r.revoked_at) status = 'revoked';
     else if (expired) status = 'expired';
-    else if (r.total > 0 && r.tested === r.total) status = 'ready';
+    else if (r.total > 0 && r.done === r.total) status = 'ready';
     else if (r.tested === 0) status = 'not-started';
     return { ...r, expired, status };
   });
@@ -326,6 +331,7 @@ module.exports = {
   itemTested,
   itemDone,
   milestoneComplete,
+  milestoneHasResults,
   computeStats,
   milestoneState,
   currentMilestoneIndex,
