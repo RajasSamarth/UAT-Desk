@@ -246,6 +246,7 @@ function createApp() {
     /^\/verify\/?$/,
     /^\/company\/?$/,
     /^\/company\/login\/?$/,
+    /^\/company\/users\/?$/,
     /^\/company\/projects\/new\/?$/,
     /^\/company\/projects\/[^/]+\/?$/,
     /^\/p\/[^/]+\/?$/,

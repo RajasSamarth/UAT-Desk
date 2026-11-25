@@ -45,6 +45,13 @@ const {
   projectStatus
 } = require('../src/projectService');
 
+const {
+  validateAdminInput,
+  validatePassword,
+  addCompanyAdmin,
+  changeCompanyUserPassword
+} = require('../src/companyUsers');
+
 describe('Security module', () => {
   test('scryptHash produces verifiable hashes', () => {
     const password = 'CorrectHorseBatteryStaple123!';
@@ -482,5 +489,148 @@ describe('Portal views and routing logic', () => {
     assert.match(html, /Acme Portal/);
     assert.match(html, /Jane Doe/);
     assert.match(html, /Record SHA-256/);
+  });
+});
+
+describe('Company users management', () => {
+  test('validateAdminInput normalizes email/name and checks password length', () => {
+    const badEmail = validateAdminInput({
+      email: 'not-an-email',
+      name: 'Ada Lovelace',
+      password: 'longpassword123'
+    });
+    assert.equal(badEmail.ok, false);
+
+    const shortPass = validateAdminInput({
+      email: 'Ada@Company.com',
+      name: 'Ada Lovelace',
+      password: 'short'
+    });
+    assert.equal(shortPass.ok, false);
+
+    const valid = validateAdminInput({
+      email: '  Ada@Company.COM ',
+      name: '  Ada Lovelace ',
+      password: 'longpassword123'
+    });
+    assert.deepEqual(valid, {
+      ok: true,
+      email: 'ada@company.com',
+      name: 'Ada Lovelace',
+      password: 'longpassword123'
+    });
+    assert.equal(validatePassword('1234567890').ok, true);
+    assert.equal(validatePassword('123456789').ok, false);
+  });
+
+  test('addCompanyAdmin creates new admins and rejects duplicates unless updateIfExists is true', async () => {
+    const store = [];
+    const mockQuery = async (sql, params = []) => {
+      if (sql.includes('SELECT') && sql.includes('lower(email)')) {
+        return { rows: store.filter(u => u.email === params[0]) };
+      }
+      if (sql.includes('INSERT INTO company_users')) {
+        const row = {
+          id: params[0],
+          email: params[1],
+          name: params[2],
+          password_hash: params[3],
+          created_at: new Date('2026-11-25T10:00:00Z'),
+          last_login_at: null
+        };
+        store.push(row);
+        return { rows: [row] };
+      }
+      if (sql.includes('UPDATE company_users')) {
+        const user = store.find(u => u.id === params[0]);
+        user.name = params[1];
+        user.password_hash = params[2];
+        return { rows: [user] };
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    };
+
+    const created = await addCompanyAdmin(
+      { email: 'NewAdmin@Acme.com', name: 'New Admin', password: 'StrongPassword123' },
+      mockQuery
+    );
+    assert.equal(created.action, 'created');
+    assert.equal(created.user.email, 'newadmin@acme.com');
+
+    await assert.rejects(
+      () =>
+        addCompanyAdmin(
+          { email: 'newadmin@acme.com', name: 'Duplicate', password: 'AnotherPassword123' },
+          mockQuery
+        ),
+      err => err.status === 409
+    );
+
+    const updated = await addCompanyAdmin(
+      {
+        email: 'newadmin@acme.com',
+        name: 'Updated Name',
+        password: 'UpdatedPassword123',
+        updateIfExists: true
+      },
+      mockQuery
+    );
+    assert.equal(updated.action, 'updated');
+    assert.equal(updated.user.name, 'Updated Name');
+  });
+
+  test('changeCompanyUserPassword enforces currentPassword for self but lets another admin reset', async () => {
+    const oldHash = scryptHash('OldPassword123');
+    const otherHash = scryptHash('OtherOldPass123');
+    const store = [
+      { id: 'u1', email: 'old@acme.com', name: 'Old Admin', password_hash: oldHash },
+      { id: 'u2', email: 'new@acme.com', name: 'New Admin', password_hash: otherHash }
+    ];
+    const mockQuery = async (sql, params = []) => {
+      if (sql.includes('SELECT id, email, name, password_hash')) {
+        return { rows: store.filter(u => u.id === params[0]) };
+      }
+      if (sql.includes('UPDATE company_users SET password_hash')) {
+        const u = store.find(row => row.id === params[0]);
+        u.password_hash = params[1];
+        return { rows: [] };
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    };
+
+    await assert.rejects(
+      () =>
+        changeCompanyUserPassword(
+          {
+            targetUserId: 'u1',
+            currentPassword: 'WrongPassword123',
+            newPassword: 'NewSelfPassword123',
+            actingUserId: 'u1'
+          },
+          mockQuery
+        ),
+      err => err.status === 400
+    );
+
+    const selfUpdated = await changeCompanyUserPassword(
+      {
+        targetUserId: 'u1',
+        currentPassword: 'OldPassword123',
+        newPassword: 'NewSelfPassword123',
+        actingUserId: 'u1'
+      },
+      mockQuery
+    );
+    assert.equal(selfUpdated.email, 'old@acme.com');
+
+    const adminReset = await changeCompanyUserPassword(
+      {
+        targetUserId: 'u1',
+        newPassword: 'ResetByPeerPassword123',
+        actingUserId: 'u2'
+      },
+      mockQuery
+    );
+    assert.equal(adminReset.email, 'old@acme.com');
   });
 });

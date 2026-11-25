@@ -31,6 +31,11 @@ const {
   isValidEmail
 } = require('../security');
 const { parseChecklist, rowsToMilestones } = require('../checklist');
+const {
+  listCompanyUsers,
+  addCompanyAdmin,
+  changeCompanyUserPassword
+} = require('../companyUsers');
 const { buildCertificatePDF } = require('../pdf');
 const { sendOtpEmail, sendCertificateEmail } = require('../email');
 const { isoDate, fmt, inviteText, safeFilename } = require('../helpers');
@@ -424,6 +429,94 @@ router.post('/company/logout', requireCsrf, (req, res) => {
     res.json({ ok: true, csrfToken });
   });
 });
+
+function serializeCompanyUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    created_at: fmt(user.created_at),
+    last_login_at: user.last_login_at ? fmt(user.last_login_at) : null
+  };
+}
+
+router.get('/company/users', requireCompanyApi, async (req, res, next) => {
+  try {
+    const users = await listCompanyUsers();
+    return res.json({
+      ok: true,
+      users: users.map(serializeCompanyUser)
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/company/users', requireCompanyApi, requireCsrf, async (req, res, next) => {
+  try {
+    const { email, name, password } = req.body || {};
+    const { user } = await addCompanyAdmin({
+      email,
+      name,
+      password,
+      updateIfExists: false
+    });
+    await audit({
+      actor: req.companyUser.email,
+      action: 'company.user_created',
+      detail: user.email,
+      req
+    });
+    return res.status(201).json({
+      ok: true,
+      user: serializeCompanyUser(user)
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ ok: false, error: err.message });
+    }
+    return next(err);
+  }
+});
+
+router.post(
+  '/company/users/:userId/password',
+  requireCompanyApi,
+  requireCsrf,
+  async (req, res, next) => {
+    try {
+      const { currentPassword, newPassword } = req.body || {};
+      const updated = await changeCompanyUserPassword({
+        targetUserId: req.params.userId,
+        newPassword,
+        currentPassword,
+        actingUserId: req.companyUser.id
+      });
+      await audit({
+        actor: req.companyUser.email,
+        action:
+          String(updated.id) === String(req.companyUser.id)
+            ? 'company.password_changed'
+            : 'company.user_password_reset',
+        detail: updated.email,
+        req
+      });
+      return res.json({
+        ok: true,
+        user: {
+          id: updated.id,
+          email: updated.email,
+          name: updated.name
+        }
+      });
+    } catch (err) {
+      if (err.status) {
+        return res.status(err.status).json({ ok: false, error: err.message });
+      }
+      return next(err);
+    }
+  }
+);
 
 router.get('/company/projects', requireCompanyApi, async (req, res, next) => {
   try {

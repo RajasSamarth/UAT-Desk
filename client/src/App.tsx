@@ -43,6 +43,7 @@ type ScreenId =
   | 'verify'
   | 'company-login'
   | 'company'
+  | 'company-users'
   | 'new-project'
   | 'project-detail'
   | 'token-login'
@@ -185,6 +186,11 @@ interface CompanyUser {
   id: string;
   email: string;
   name: string;
+}
+
+interface CompanyUserRecord extends CompanyUser {
+  created_at: string;
+  last_login_at: string | null;
 }
 
 interface LightboxData {
@@ -402,6 +408,7 @@ function parseLocation(pathname: string, search: string): ParsedRoute {
   }
   if (path === '/company/login') return { screen: 'company-login' };
   if (path === '/company') return { screen: 'company' };
+  if (path === '/company/users') return { screen: 'company-users' };
   if (path === '/company/projects/new') return { screen: 'new-project' };
 
   const compMatch = /^\/company\/projects\/([^/]+)$/.exec(path);
@@ -449,6 +456,8 @@ function buildPathForRoute(route: ParsedRoute): string {
       return '/company/login';
     case 'company':
       return '/company';
+    case 'company-users':
+      return '/company/users';
     case 'new-project':
       return '/company/projects/new';
     case 'project-detail':
@@ -1126,6 +1135,7 @@ function TopBar({
   const isCompanyScreen = [
     'company',
     'company-login',
+    'company-users',
     'new-project',
     'project-detail',
   ].includes(screen);
@@ -1242,17 +1252,20 @@ function TopBar({
             </div>
           ) : companyUser ? (
             <div className="hidden sm:flex items-center gap-2 text-xs">
-              <span
+              <button
+                type="button"
+                onClick={() => handleNav({ screen: 'company-users' })}
+                title="Manage admin accounts & password"
                 style={{
                   backgroundColor: 'var(--surface-2)',
                   borderColor: 'var(--line)',
                   color: 'var(--ink-secondary)',
                   borderRadius: 'var(--radius-sm)',
                 }}
-                className="gs-mono px-2.5 py-1 border"
+                className="gs-focus gs-mono px-2.5 py-1 border hover:border-[var(--brand)] cursor-pointer"
               >
                 {companyUser.email}
-              </span>
+              </button>
               <button
                 type="button"
                 onClick={onCompanySignOut}
@@ -1409,6 +1422,7 @@ function CompanyLeftRail({
       route: { screen: 'project-detail', projectId: activeProjectId },
       disabled: !activeProjectId,
     },
+    { id: 'company-users', label: 'Admins & passwords', Icon: Users, route: { screen: 'company-users' } },
     { id: 'verify', label: 'Verify certificate', Icon: ShieldCheck, route: { screen: 'verify' } },
   ];
 
@@ -6126,6 +6140,619 @@ function ErrorStateScreen({
   );
 }
 
+function generateStrongPassword(): string {
+  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%';
+  const bytes = new Uint8Array(16);
+  if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
+    window.crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i += 1) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(bytes, (b) => chars[b % chars.length]).join('');
+}
+
+function CompanyUsersScreen({
+  companyUser,
+  apiFetch,
+  onNavigate,
+  onFlash,
+}: {
+  companyUser: CompanyUser;
+  apiFetch: <T = unknown>(url: string, init?: RequestInit) => Promise<T>;
+  onNavigate: (route: ParsedRoute) => void;
+  onFlash: (flash: FlashMessage) => void;
+}) {
+  const [users, setUsers] = useState<CompanyUserRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  // Add new admin form
+  const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [createdAdminCreds, setCreatedAdminCreds] = useState<{
+    email: string;
+    name: string;
+    password: string;
+  } | null>(null);
+
+  // Change own password form
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [selfPassword, setSelfPassword] = useState('');
+  const [confirmSelfPassword, setConfirmSelfPassword] = useState('');
+  const [selfError, setSelfError] = useState('');
+  const [savingSelf, setSavingSelf] = useState(false);
+
+  // Reset another admin's password inline
+  const [resetTargetId, setResetTargetId] = useState<string | null>(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [showResetPass, setShowResetPass] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [savingReset, setSavingReset] = useState(false);
+
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
+    try {
+      const res = await apiFetch<{ ok: boolean; users: CompanyUserRecord[] }>(
+        '/api/company/users'
+      );
+      setUsers(res.users);
+    } catch (err) {
+      const e = err as Error & { status?: number };
+      if (e.status === 401) {
+        onNavigate({ screen: 'company-login' });
+        return;
+      }
+      setLoadError(e.message || 'Could not load company admins.');
+    } finally {
+      setLoading(false);
+    }
+  }, [apiFetch, onNavigate]);
+
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
+
+  const handleAddAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddError('');
+    setCreatedAdminCreds(null);
+    if (newName.trim().length < 2) {
+      setAddError('Enter the admin’s full name (at least 2 characters).');
+      return;
+    }
+    if (!newEmail.trim()) {
+      setAddError('Enter a valid work email address.');
+      return;
+    }
+    if (newPassword.length < 10) {
+      setAddError('Use a password of at least 10 characters.');
+      return;
+    }
+
+    setAdding(true);
+    try {
+      const submittedPass = newPassword;
+      const res = await apiFetch<{ ok: boolean; user: CompanyUserRecord }>(
+        '/api/company/users',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: newName.trim(),
+            email: newEmail.trim(),
+            password: submittedPass,
+          }),
+        }
+      );
+      setUsers((prev) => [...prev, res.user]);
+      setCreatedAdminCreds({
+        name: res.user.name,
+        email: res.user.email,
+        password: submittedPass,
+      });
+      setNewName('');
+      setNewEmail('');
+      setNewPassword('');
+      onFlash({ type: 'ok', message: `Added admin account ${res.user.email}.` });
+    } catch (err) {
+      setAddError((err as Error).message || 'Could not add admin account.');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleSelfPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSelfError('');
+    if (!currentPassword) {
+      setSelfError('Enter your current password.');
+      return;
+    }
+    if (selfPassword.length < 10) {
+      setSelfError('Use a new password of at least 10 characters.');
+      return;
+    }
+    if (selfPassword !== confirmSelfPassword) {
+      setSelfError('New passwords do not match.');
+      return;
+    }
+
+    setSavingSelf(true);
+    try {
+      await apiFetch(`/api/company/users/${encodeURIComponent(companyUser.id)}/password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword: selfPassword,
+        }),
+      });
+      setCurrentPassword('');
+      setSelfPassword('');
+      setConfirmSelfPassword('');
+      onFlash({ type: 'ok', message: `Updated password for ${companyUser.email}.` });
+    } catch (err) {
+      setSelfError((err as Error).message || 'Could not update password.');
+    } finally {
+      setSavingSelf(false);
+    }
+  };
+
+  const handleResetOtherPassword = async (e: React.FormEvent, target: CompanyUserRecord) => {
+    e.preventDefault();
+    setResetError('');
+    if (resetPassword.length < 10) {
+      setResetError('Use a password of at least 10 characters.');
+      return;
+    }
+    setSavingReset(true);
+    try {
+      await apiFetch(`/api/company/users/${encodeURIComponent(target.id)}/password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: resetPassword }),
+      });
+      setResetTargetId(null);
+      setResetPassword('');
+      setShowResetPass(false);
+      onFlash({ type: 'ok', message: `Updated password for ${target.email}.` });
+    } catch (err) {
+      setResetError((err as Error).message || 'Could not reset password.');
+    } finally {
+      setSavingReset(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div
+            className="text-[11px] font-bold uppercase tracking-[0.08em]"
+            style={{ color: 'var(--muted)' }}
+          >
+            Company workspace
+          </div>
+          <h1
+            className="font-extrabold tracking-[-0.03em]"
+            style={{ fontSize: 'clamp(28px, 3.4vw, 38px)', lineHeight: 1.1 }}
+          >
+            Admins &amp; passwords
+          </h1>
+          <p className="text-[13.5px]" style={{ color: 'var(--ink-secondary)' }}>
+            Add company admin accounts, update your password, or reset an older user’s password.
+          </p>
+        </div>
+
+        <ActionButton
+          variant="ghost"
+          size="sm"
+          onClick={() => void loadUsers()}
+          disabled={loading}
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>Refresh list</span>
+        </ActionButton>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+        <SignalCard className="space-y-4">
+          <div>
+            <h2 className="text-[18px] font-semibold">Add company admin</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+              Creates a new company workspace login (passwords require at least 10 characters).
+            </p>
+          </div>
+
+          <form onSubmit={handleAddAdmin} className="space-y-3.5" noValidate>
+            <div>
+              <label
+                htmlFor="gs-admin-name"
+                className="block text-[13.5px] font-semibold mb-1.5"
+              >
+                Full name <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <input
+                id="gs-admin-name"
+                type="text"
+                required
+                placeholder="e.g. Ananya Verma"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                style={{
+                  backgroundColor: 'var(--surface-2)',
+                  borderColor: 'var(--line-strong)',
+                  color: 'var(--ink)',
+                  borderRadius: 'var(--radius-sm)',
+                }}
+                className="gs-focus w-full px-3 py-2.5 border min-h-[44px]"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="gs-admin-email"
+                className="block text-[13.5px] font-semibold mb-1.5"
+              >
+                Work email <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <input
+                id="gs-admin-email"
+                type="email"
+                required
+                placeholder="ananya@company.com"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                style={{
+                  backgroundColor: 'var(--surface-2)',
+                  borderColor: 'var(--line-strong)',
+                  color: 'var(--ink)',
+                  borderRadius: 'var(--radius-sm)',
+                }}
+                className="gs-focus w-full px-3 py-2.5 border min-h-[44px]"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <label
+                  htmlFor="gs-admin-pass"
+                  className="block text-[13.5px] font-semibold"
+                >
+                  Initial password <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewPassword(generateStrongPassword());
+                    setShowNewPass(true);
+                  }}
+                  style={{ color: 'var(--brand)' }}
+                  className="gs-focus text-xs font-semibold hover:underline cursor-pointer"
+                >
+                  Generate password
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  id="gs-admin-pass"
+                  type={showNewPass ? 'text' : 'password'}
+                  required
+                  minLength={10}
+                  placeholder="At least 10 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  style={{
+                    backgroundColor: 'var(--surface-2)',
+                    borderColor: 'var(--line-strong)',
+                    color: 'var(--ink)',
+                    borderRadius: 'var(--radius-sm)',
+                  }}
+                  className="gs-focus flex-1 px-3 py-2.5 border min-h-[44px]"
+                />
+                <ActionButton
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowNewPass((v) => !v)}
+                  aria-label={showNewPass ? 'Hide password' : 'Show password'}
+                >
+                  <Eye className="w-4 h-4" />
+                </ActionButton>
+              </div>
+            </div>
+
+            {addError && (
+              <NoticeBanner tone="error" title="Could not create admin">
+                {addError}
+              </NoticeBanner>
+            )}
+
+            <ActionButton type="submit" variant="primary" fullWidth disabled={adding}>
+              <Users className="w-4 h-4" />
+              <span>{adding ? 'Adding admin…' : 'Add admin account'}</span>
+            </ActionButton>
+          </form>
+
+          {createdAdminCreds && (
+            <div className="pt-2 space-y-2.5">
+              <NoticeBanner
+                tone="ok"
+                title={`Admin created: ${createdAdminCreds.name}`}
+              >
+                Share these credentials securely. You will not see this password again after leaving.
+              </NoticeBanner>
+              <CopyBlock
+                label="New admin credentials"
+                value={`URL: ${window.location.origin}/company/login\nEmail: ${createdAdminCreds.email}\nPassword: ${createdAdminCreds.password}`}
+                multiline
+              />
+            </div>
+          )}
+        </SignalCard>
+
+        <SignalCard className="space-y-4">
+          <div>
+            <h2 className="text-[18px] font-semibold">Change my password</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+              Updating password for <span className="gs-mono">{companyUser.email}</span>
+            </p>
+          </div>
+
+          <form onSubmit={handleSelfPassword} className="space-y-3.5" noValidate>
+            <div>
+              <label
+                htmlFor="gs-self-cur"
+                className="block text-[13.5px] font-semibold mb-1.5"
+              >
+                Current password <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <input
+                id="gs-self-cur"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                style={{
+                  backgroundColor: 'var(--surface-2)',
+                  borderColor: 'var(--line-strong)',
+                  color: 'var(--ink)',
+                  borderRadius: 'var(--radius-sm)',
+                }}
+                className="gs-focus w-full px-3 py-2.5 border min-h-[44px]"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="gs-self-new"
+                className="block text-[13.5px] font-semibold mb-1.5"
+              >
+                New password <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <input
+                id="gs-self-new"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={10}
+                placeholder="At least 10 characters"
+                value={selfPassword}
+                onChange={(e) => setSelfPassword(e.target.value)}
+                style={{
+                  backgroundColor: 'var(--surface-2)',
+                  borderColor: 'var(--line-strong)',
+                  color: 'var(--ink)',
+                  borderRadius: 'var(--radius-sm)',
+                }}
+                className="gs-focus w-full px-3 py-2.5 border min-h-[44px]"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="gs-self-confirm"
+                className="block text-[13.5px] font-semibold mb-1.5"
+              >
+                Confirm new password <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <input
+                id="gs-self-confirm"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={confirmSelfPassword}
+                onChange={(e) => setConfirmSelfPassword(e.target.value)}
+                style={{
+                  backgroundColor: 'var(--surface-2)',
+                  borderColor: 'var(--line-strong)',
+                  color: 'var(--ink)',
+                  borderRadius: 'var(--radius-sm)',
+                }}
+                className="gs-focus w-full px-3 py-2.5 border min-h-[44px]"
+              />
+            </div>
+
+            {selfError && (
+              <NoticeBanner tone="error" title="Password not updated">
+                {selfError}
+              </NoticeBanner>
+            )}
+
+            <ActionButton type="submit" variant="primary" fullWidth disabled={savingSelf}>
+              <KeyRound className="w-4 h-4" />
+              <span>{savingSelf ? 'Updating…' : 'Update my password'}</span>
+            </ActionButton>
+          </form>
+        </SignalCard>
+      </div>
+
+      <SignalCard className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-[18px] font-semibold">
+              Company admin accounts ({users.length})
+            </h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+              Reset another admin’s password directly without needing their old password.
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div
+            className="h-16 rounded animate-pulse"
+            style={{ backgroundColor: 'var(--surface-2)' }}
+          />
+        ) : loadError ? (
+          <NoticeBanner tone="error" title="Could not load admin directory">
+            {loadError}
+          </NoticeBanner>
+        ) : (
+          <div className="space-y-2.5">
+            {users.map((u) => {
+              const isSelf = u.id === companyUser.id;
+              const resetting = resetTargetId === u.id;
+              return (
+                <div
+                  key={u.id}
+                  style={{
+                    backgroundColor: 'var(--surface-2)',
+                    borderColor: resetting ? 'var(--brand)' : 'var(--line)',
+                    borderRadius: 'var(--radius-sm)',
+                  }}
+                  className="border p-3.5 space-y-3"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-[15px]">{u.name}</span>
+                        {isSelf && <StatusChip tone="ok" label="You" />}
+                      </div>
+                      <div
+                        className="gs-mono text-xs break-all"
+                        style={{ color: 'var(--ink-secondary)' }}
+                      >
+                        {u.email}
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--muted)' }}>
+                        Created {u.created_at}
+                        {u.last_login_at
+                          ? ` · Last sign-in ${u.last_login_at}`
+                          : ' · Never signed in'}
+                      </div>
+                    </div>
+
+                    {!isSelf && (
+                      <ActionButton
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (resetting) {
+                            setResetTargetId(null);
+                            setResetPassword('');
+                            setResetError('');
+                          } else {
+                            setResetTargetId(u.id);
+                            setResetPassword('');
+                            setResetError('');
+                            setShowResetPass(false);
+                          }
+                        }}
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
+                        <span>{resetting ? 'Close' : 'Reset password'}</span>
+                      </ActionButton>
+                    )}
+                  </div>
+
+                  {resetting && (
+                    <form
+                      onSubmit={(e) => void handleResetOtherPassword(e, u)}
+                      style={{ borderTop: '1px solid var(--line)' }}
+                      className="pt-3 space-y-2.5"
+                      noValidate
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label
+                          htmlFor={`gs-reset-${u.id}`}
+                          className="text-xs font-semibold"
+                        >
+                          New password for {u.email}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResetPassword(generateStrongPassword());
+                            setShowResetPass(true);
+                          }}
+                          style={{ color: 'var(--brand)' }}
+                          className="gs-focus text-xs font-semibold hover:underline cursor-pointer"
+                        >
+                          Generate password
+                        </button>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          id={`gs-reset-${u.id}`}
+                          type={showResetPass ? 'text' : 'password'}
+                          required
+                          minLength={10}
+                          placeholder="At least 10 characters"
+                          value={resetPassword}
+                          onChange={(e) => setResetPassword(e.target.value)}
+                          style={{
+                            backgroundColor: 'var(--surface)',
+                            borderColor: 'var(--line-strong)',
+                            color: 'var(--ink)',
+                            borderRadius: 'var(--radius-sm)',
+                          }}
+                          className="gs-focus flex-1 px-3 py-2 border min-h-[40px] text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <ActionButton
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowResetPass((v) => !v)}
+                            aria-label={showResetPass ? 'Hide password' : 'Show password'}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </ActionButton>
+                          <ActionButton
+                            type="submit"
+                            variant="primary"
+                            size="sm"
+                            disabled={savingReset}
+                          >
+                            <span>{savingReset ? 'Saving…' : 'Save password'}</span>
+                          </ActionButton>
+                        </div>
+                      </div>
+                      {resetError && (
+                        <NoticeBanner tone="error">{resetError}</NoticeBanner>
+                      )}
+                    </form>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SignalCard>
+    </div>
+  );
+}
+
 /**
  * ============================================================================
  * 9. ROOT GRAPHITE & SIGNAL APP (CONNECTED TO EXPRESS BACKEND)
@@ -6370,7 +6997,9 @@ export default function App() {
   useEffect(() => {
     if (!bootstrapped) return;
     if (
-      ['company', 'new-project', 'project-detail'].includes(route.screen) &&
+      ['company', 'company-users', 'new-project', 'project-detail'].includes(
+        route.screen
+      ) &&
       !companyUser
     ) {
       navigate({ screen: 'company-login' }, true);
@@ -6438,9 +7067,12 @@ export default function App() {
     setCreatedProjectPayload(null);
   }, []);
 
-  const showCompanyRail = ['company', 'new-project', 'project-detail'].includes(
-    route.screen
-  );
+  const showCompanyRail = [
+    'company',
+    'company-users',
+    'new-project',
+    'project-detail',
+  ].includes(route.screen);
 
   // Keep csrfToken referenced cleanly
   void csrfToken;
@@ -6547,6 +7179,15 @@ export default function App() {
                 <CompanyDashboardScreen
                   apiFetch={apiFetch}
                   onNavigate={navigate}
+                />
+              )}
+
+              {route.screen === 'company-users' && companyUser && (
+                <CompanyUsersScreen
+                  companyUser={companyUser}
+                  apiFetch={apiFetch}
+                  onNavigate={navigate}
+                  onFlash={setFlash}
                 />
               )}
 
