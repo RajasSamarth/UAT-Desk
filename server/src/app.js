@@ -173,7 +173,11 @@ function createApp() {
     crossOriginEmbedderPolicy: false
   }));
 
-  const clientDistDir = path.resolve(__dirname, '..', '..', 'client', 'dist');
+  const localClientDistDir = path.resolve(__dirname, '..', '..', 'client', 'dist');
+  const bundledSpaDir = path.resolve(__dirname, '..', 'spa');
+  const clientDistDir = fs.existsSync(path.join(localClientDistDir, 'index.html'))
+    ? localClientDistDir
+    : bundledSpaDir;
   const clientIndexPath = path.join(clientDistDir, 'index.html');
 
   app.use('/static', express.static(path.join(__dirname, 'public'), {
