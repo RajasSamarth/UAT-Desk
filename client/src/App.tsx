@@ -228,44 +228,7 @@ interface ChecklistPreview {
  * ============================================================================
  */
 const GRAPHITE_SIGNAL_CSS = `
-  :root, [data-theme="dark"] {
-    --bg: #0b0f19;
-    --surface: #111827;
-    --surface-2: #182033;
-    --surface-3: #1f2944;
-    --ink: #e5e7eb;
-    --ink-secondary: #9ca3af;
-    --muted: #6b7280;
-    --line: #334155;
-    --line-strong: #475569;
-
-    --brand: #6366f1;
-    --brand-hover: #4f46e5;
-    --brand-soft: #312e81;
-    --brand-border: #818cf8;
-
-    --ok: #22c55e;
-    --ok-soft: #064e3b;
-    --ok-border: #10b981;
-
-    --danger: #ef4444;
-    --danger-soft: #450a0a;
-    --danger-border: #f87171;
-
-    --warn: #f59e0b;
-    --warn-soft: #451a03;
-    --warn-border: #fbbf24;
-
-    --radius-sm: 6px;
-    --radius-md: 8px;
-    --radius-lg: 12px;
-
-    --shadow-xs: 0 1px 2px rgba(2, 6, 23, 0.35);
-    --shadow-md: 0 4px 14px rgba(2, 6, 23, 0.52);
-    --shadow-lg: 0 14px 32px rgba(2, 6, 23, 0.72);
-  }
-
-  [data-theme="light"] {
+  :root, [data-theme="light"] {
     --bg: #f9fafb;
     --surface: #ffffff;
     --surface-2: #f1f5f9;
@@ -293,9 +256,46 @@ const GRAPHITE_SIGNAL_CSS = `
     --warn-soft: #fffbeb;
     --warn-border: #fcd34d;
 
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+
     --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
     --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
     --shadow-lg: 0 14px 30px rgba(15, 23, 42, 0.14);
+  }
+
+  [data-theme="dark"] {
+    --bg: #0b0f19;
+    --surface: #111827;
+    --surface-2: #182033;
+    --surface-3: #1f2944;
+    --ink: #e5e7eb;
+    --ink-secondary: #9ca3af;
+    --muted: #6b7280;
+    --line: #334155;
+    --line-strong: #475569;
+
+    --brand: #6366f1;
+    --brand-hover: #4f46e5;
+    --brand-soft: #312e81;
+    --brand-border: #818cf8;
+
+    --ok: #22c55e;
+    --ok-soft: #064e3b;
+    --ok-border: #10b981;
+
+    --danger: #ef4444;
+    --danger-soft: #450a0a;
+    --danger-border: #f87171;
+
+    --warn: #f59e0b;
+    --warn-soft: #451a03;
+    --warn-border: #fbbf24;
+
+    --shadow-xs: 0 1px 2px rgba(2, 6, 23, 0.35);
+    --shadow-md: 0 4px 14px rgba(2, 6, 23, 0.52);
+    --shadow-lg: 0 14px 32px rgba(2, 6, 23, 0.72);
   }
 
   .gs-root {
@@ -380,7 +380,7 @@ function readInitialTheme(): Theme {
   } catch {
     // ignore storage errors
   }
-  return 'dark';
+  return 'light';
 }
 
 function getTodayCalendarYmd(): string {
