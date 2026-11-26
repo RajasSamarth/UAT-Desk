@@ -2440,10 +2440,6 @@ function CompanyDashboardScreen({
           >
             UAT projects
           </h1>
-          <p className="text-[13.5px]" style={{ color: 'var(--ink-secondary)' }}>
-            Release readiness uses <span className="gs-mono">done === total</span>{' '}
-            so open failures never appear ready for signature.
-          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -4383,7 +4379,9 @@ function ChecklistPortalScreen({
     'Results save automatically on selection.'
   );
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [draftStatuses, setDraftStatuses] = useState<Record<string, ItemStatus>>({});
   const [failAlert, setFailAlert] = useState<Record<string, string>>({});
+  const draftStatusesRef = useRef<Record<string, ItemStatus>>({});
   const noteRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const rightScrollRef = useRef<HTMLDivElement | null>(null);
   const debounceTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -4392,8 +4390,23 @@ function ChecklistPortalScreen({
   >({});
   const savingRef = useRef(false);
 
+  const setDraftStatus = useCallback((itemId: string, status: ItemStatus | null) => {
+    setDraftStatuses((prev) => {
+      const next = { ...prev };
+      if (status === null) {
+        delete next[itemId];
+      } else {
+        next[itemId] = status;
+      }
+      draftStatusesRef.current = next;
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     setNotes({});
+    draftStatusesRef.current = {};
+    setDraftStatuses({});
     setFailAlert({});
     setSelectedMsId(defaultMsId);
   }, [project.id]);
@@ -4464,11 +4477,23 @@ function ChecklistPortalScreen({
 
       try {
         await saveResultRequest(item, choice, commentVal);
+        if (
+          draftStatusesRef.current[item.id] === choice &&
+          !pendingQueueRef.current[item.id]
+        ) {
+          setDraftStatus(item.id, null);
+        }
         while (Object.keys(pendingQueueRef.current).length > 0) {
           const entries = Object.values(pendingQueueRef.current);
           pendingQueueRef.current = {};
           for (const q of entries) {
             await saveResultRequest(q.item, q.status, q.comment);
+            if (
+              draftStatusesRef.current[q.item.id] === q.status &&
+              !pendingQueueRef.current[q.item.id]
+            ) {
+              setDraftStatus(q.item.id, null);
+            }
           }
         }
         setStatusMessage('Saved');
@@ -4480,7 +4505,7 @@ function ChecklistPortalScreen({
         savingRef.current = false;
       }
     },
-    [project.signed_at, saveResultRequest]
+    [project.signed_at, saveResultRequest, setDraftStatus]
   );
 
   const handleUploadScreenshot = async (item: ChecklistItem, file: File) => {
@@ -4721,6 +4746,7 @@ function ChecklistPortalScreen({
 
               {activeMs.items.map((item) => {
                 const itMeta = item.status ? ITEM_STATUS_MAP[item.status] : null;
+                const effectiveStatus = draftStatuses[item.id] ?? item.status;
                 const currentNote =
                   notes[item.id] !== undefined ? notes[item.id] : item.comment || '';
                 const alertText = failAlert[item.id];
@@ -4854,7 +4880,7 @@ function ChecklistPortalScreen({
                         ).map((opt) => {
                           const naBlocked = opt.key === 'na' && item.mandatory;
                           const disabledChoice = naBlocked || isLockedSigned;
-                          const chosen = item.status === opt.key;
+                          const chosen = effectiveStatus === opt.key;
 
                           let btnColors = {
                             backgroundColor: 'var(--surface-2)',
@@ -4893,9 +4919,10 @@ function ChecklistPortalScreen({
                                   ? 'Required item cannot be marked N/A'
                                   : undefined
                               }
-                              onClick={() =>
-                                void flushSave(item, opt.key, currentNote)
-                              }
+                              onClick={() => {
+                                setDraftStatus(item.id, opt.key);
+                                void flushSave(item, opt.key, currentNote);
+                              }}
                               style={{
                                 ...btnColors,
                                 opacity: disabledChoice ? 0.45 : 1,
@@ -4938,15 +4965,46 @@ function ChecklistPortalScreen({
                             const val = e.target.value;
                             setNotes((prev) => ({ ...prev, [item.id]: val }));
                             clearTimeout(debounceTimerRef.current[item.id]);
-                            debounceTimerRef.current[item.id] = setTimeout(() => {
-                              if (item.status === 'fail' && val.trim().length > 0) {
-                                void flushSave(item, 'fail', val);
-                              }
-                            }, 800);
+                            const targetStatus =
+                              effectiveStatus === 'pass' ||
+                              effectiveStatus === 'fail' ||
+                              effectiveStatus === 'na'
+                                ? effectiveStatus
+                                : null;
+                            if (targetStatus === 'fail' && val.trim().length > 0) {
+                              setFailAlert((prev) => {
+                                if (!prev[item.id]) return prev;
+                                const next = { ...prev };
+                                delete next[item.id];
+                                return next;
+                              });
+                            }
+                            if (
+                              targetStatus &&
+                              (targetStatus !== 'fail' || val.trim().length > 0)
+                            ) {
+                              debounceTimerRef.current[item.id] = setTimeout(() => {
+                                void flushSave(item, targetStatus, val);
+                              }, 800);
+                            }
                           }}
                           onBlur={() => {
-                            if (item.status === 'fail' && currentNote.trim()) {
-                              void flushSave(item, 'fail', currentNote);
+                            const targetStatus =
+                              effectiveStatus === 'pass' ||
+                              effectiveStatus === 'fail' ||
+                              effectiveStatus === 'na'
+                                ? effectiveStatus
+                                : null;
+                            const hasPendingDraft = Boolean(draftStatuses[item.id]);
+                            const hasNoteChanged =
+                              notes[item.id] !== undefined &&
+                              notes[item.id] !== (item.comment || '');
+                            if (
+                              targetStatus &&
+                              (hasPendingDraft || hasNoteChanged) &&
+                              (targetStatus !== 'fail' || currentNote.trim().length > 0)
+                            ) {
+                              void flushSave(item, targetStatus, currentNote);
                             }
                           }}
                           style={{
